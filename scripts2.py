@@ -39,7 +39,7 @@ def range(p1,p2,stdx1,stdx2,stdy1,stdy2,outname=[]):
         if outname == []:
             outname=p2_name.replace('.nii.gz','')  
 
-    # arrayify if float
+    # arrayify if float test
 
     if ~isinstance(p1,np.ndarray):
         p1=array([p1])
