@@ -201,8 +201,8 @@ def range(p1,p2,stdx1,stdx2,stdy1,stdy2,outname=[]):
         coupling_dir[(bb,)+ii]  = (( abs(ps[1-bb,:])>(abs(extremes).max(0)) ) ^ coupling_tmp)
         
         # switch negative vals around
-        tmp=min_p_tmp.copy()
-        min_p_tmp=max_p_tmp
+        #tmp=min_p_tmp.copy()
+        #min_p_tmp=max_p_tmp
         #max_p_tmp[neg_ps[bb,]]=-tmp[neg_ps[bb,]]
 
         min_p[(bb,)+ii] = min_p_tmp

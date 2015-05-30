@@ -2,21 +2,21 @@ from matplotlib.colors import LinearSegmentedColormap
 import mne
 
 import scripts2
-import ml_funcs
+#import ml_funcs
 import seaborn as sns
 
 import scipy, glob,re, os.path
 import scipy.stats as stats
 from matplotlib.pylab import find
 import itertools
-from ml_funcs import corr_calc
+#from ml_funcs import corr_calc
 import colorline
 from colorline import colorline
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.collections import LineCollection
 
-t21=ml_funcs.transp21
-rtoz=ml_funcs.rtoz
+#t21=ml_funcs.transp21
+#rtoz=ml_funcs.rtoz
 
 from operator import mul
 from fractions import Fraction
@@ -123,7 +123,7 @@ for aaa in arange(1):
 
     fig=plt.figure(1)
     #prefix='wa'
-    execfile('../scripts.py')
+    execfile('/home/fs0/eduff/code/ampconn/scripts.py')
     fig=plt.figure(aaa+figadd)
     data=ccstatsmat[0,:]
     inds=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(data)))[0])
@@ -183,8 +183,7 @@ for aaa in arange(1):
     #plot_connectivity_circle(data[inds],ROI_names,(indices[0][inds],indices[1][inds]),fig=fig,colormap='BlueRed1',vmin=-6,vmax=6,node_colors=vcols)   
 
     titles=["Change in shared signal","Change in unshared signal","Change in both shared and unshared signals","Change in synchronisation"]
-
-    for b in arange(1):
+    for b in arange(4):
 
         inds=intersect1d(inds_orig,find(changes==b))
 
@@ -237,10 +236,9 @@ for aaa in arange(1):
 
              
             if len(fbwx)==1:            
-                fill_between(r_[fbwx-0.5,fbwx+0.5],r_[out[0][1][0][0,inds[ii]].flatten(),out[0][1][0][0,inds[ii]].flatten()],r_[out[1][0][0][0,inds[ii]].flatten(),out[1][1][0][0,inds[ii]].flatten()],alpha=0.4)
+                fill_between(r_[fbwx-0.5,fbwx+0.5],r_[out[0][1][0][0,inds[ii]].flatten(),out[1][1][0][0,inds[ii]].flatten()],r_[out[1][0][0][0,inds[ii]].flatten(),out[1][1][0][0,inds[ii]].flatten()],alpha=0.4)
             else:
-                fill_between(fbwx,out[0][1][0][0,inds[ii]].flatten(),out[0][1][0][0,inds[ii]].flatten(),alpha=0.4)
-            sdf
+                fill_between(fbwx,out[0][1][0][0,inds[ii]].flatten(),out[1][1][0][0,inds[ii]].flatten(),alpha=0.4)
             iipospos=in1d(ii,find(ccmat1[0,inds]>ccmat2[0,inds]))
             iipos=ii[iipospos]
 
@@ -262,7 +260,6 @@ for aaa in arange(1):
             line2=plt.scatter((xes)[find(iinegpos)],ccmat1[0,inds[iineg]].T,color='blue',zorder=2)
             line1=plt.scatter(xes,ccmat2[0,inds[ii]].T,color='white',zorder=2)
             # color line two according to pos or neg change
-
             cmap=ListedColormap([(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196), (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)])
             norm= BoundaryNorm([-2,0,1,2],cmap.N)
             z=zeros(xes.shape[0]+1,)
@@ -272,6 +269,7 @@ for aaa in arange(1):
             colorline(r_[xes,xes[-1]+1], z+1.05,ROI_RSNs[indices[0][r_[inds,inds[-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             colorline(r_[xes,xes[-1]+1], z+1.1,ROI_RSNs[indices[1][r_[inds,inds[-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             plt.show()
+
             # plot line color
             #tcs1 = ccmat1[0,inds[ii]].T
             #tcs2 = ccmat2[0,inds[ii]].T
