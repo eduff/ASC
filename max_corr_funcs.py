@@ -264,69 +264,61 @@ def corr_lims_unshared_mat(A,B,errdist=False,pcorrs=False,errdist_perms=1000,dof
 
     if errdist:
         shp=covsA.shape
+        init_samps=errdist_perms*10
+        init_dof=3
 
         unshared_lims_err=zeros((errdist_perms,shp[0],shp[1],shp[1]))
 
+        ppA=zeros((init_samps))
+        ppB=zeros((init_samps))
+
         for a in arange(shp[0]):
             # generate init samples
-            whA=scipy.stats.wishart(10,covsA[a,:,:])
-            whB=scipy.stats.wishart(10,covsB[a,:,:])
+            whA=scipy.stats.wishart(init_dof,array([[1,0],[0,1]]))
+            whB=scipy.stats.wishart(init_dof,covsB[a,:,:])
             
-            covsA_sim=whA.rvs(errdist_perms)/(10)
-            covsB_sim=whB.rvs(errdist_perms)/(10)
+            covsA_sim=whA.rvs(init_samps)/(init_dof)
+            covsB_sim=whB.rvs(init_samps)/(init_dof)
 
-            for a in arange(errdir_perms):
+            whA=(scipy.stats.wishart(dof,covsA_sim[0,:,:]))
+            whB=(scipy.stats.wishart(dof,covsB_sim[0,:,:]))
+            ppA[0]=whA.pdf(covsA[a,:,:]*dof)
+            ppB[0]=whB.pdf(covsB[a,:,:]*dof)
 
+            for b in arange(1,init_samps):
+                whA=(scipy.stats.wishart(dof,covsA_sim[b,:,:]))
+                whB=(scipy.stats.wishart(dof,covsB_sim[b,:,:]))
+                ppA[b]=ppA[b-1]+whA.pdf(covsA[a,:,:]*dof)
+                ppB[b]=ppB[b-1]+whB.pdf(covsB[a,:,:]*dof)
+            print(a)
+            ppA=ppA/ppA[-1]
+            ppB=ppB/ppB[-1]
             # A_sim=FC(covsA_sim,cov_flag=True)
             # B_sim=FC(covsB_sim,cov_flag=True)
-
-            ppA=zeros((1,errdist_perms))
-            ppB=zeros((1,errdist_perms))
             
-            whA=[]
-            whB=[]
-            
-            cnt=0
 
-            while cnt < errdist_perms:
-
+            for b in arange(errdist_perms):
                 rr = scipy.stats.uniform(0,1).rvs() 
-                rint=np.random.randint(errdist_perms)
-                whA = (scipy.stats.wishart(dof,covsA_sim[rint,:,:]))
+                
+                elsA=max(0,np.argmin(ppA<(rr)))
+                elsB=max(0,np.argmin(ppB<(rr)))
 
-                if whA.pdf(covsA[a,:,:]*dof) > rr:
+                whA=(scipy.stats.wishart(dof,covsA_sim[elsA,:,:]))
+                whB=(scipy.stats.wishart(dof,covsB_sim[elsB,:,:]))
 
-                    whB=(scipy.stats.wishart(dof,covsB_sim[rint,:,:]))
-
-                    pp=whB.pdf(covsB[a,:,:]*dof)
-
-                    while  pp > rr:
-
-                        whB=(scipy.stats.wishart(dof,covsB_sim[b,:,:]))
-                        pp=whB.pdf(covsB[a,:,:]*dof)
-                        rr = scipy.stats.uniform(0,1).rvs() 
-                        rint=np.random.randint(errdist_perms)
-
-                    A_sim=FC(whA.rvs(),cov_flag=True)
-                    B_sim=FC(whB.rvs(),cov_flag=True)
-
-                    unshared_lims_err[cnt,a,:,:],_,_ = corr_lims_unshared_mat(A_sim,B_sim,dof=dof)
-                    cnt+=1
-                    display(cnt)
-
+                A_sim=FC(whA.rvs(),cov_flag=True)
+                B_sim=FC(whB.rvs(),cov_flag=True)
+                unshared_lims_err[b,a,:,:],_,_,_ = corr_lims_unshared_mat(A_sim,B_sim,dof=dof)
             # ppA=ppA/sum(ppA)
             # ppB=ppB/sum(ppB)
             # select var
             #rand_els = scipy.stats.uniform(0,1).rvs(errdist_perms) 
-            #elsA=sort(searchsorted(ppA_cul.flatten(),rand_els)) 
-            #elsB=sort(searchsorted(ppB_cul.flatten(),rand_els)) 
-
-            #for b in arange(err_dist_perms):
+                        #for b in arange(err_dist_perms):
         unshared_lims_err[abs(unshared_lims_err)>1]=sign(unshared_lims_err[abs(unshared_lims_err)>1]) 
         pctl_out = [percentile(unshared_lims_err,pctl,0),percentile(unshared_lims_err,100-pctl,0)]
         pctls=(Bcorrs> pctl_out[0]) != (Bcorrs> pctl_out[1])
 
-    return(unshared, pctls ,ppA)
+    return(unshared, pctls ,unshared_lims_err,ppA)
 
 # calculate amount of signal with correlation rho_xb to initial signal produces variance change from std_x to std_xb
 
