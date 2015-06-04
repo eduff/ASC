@@ -270,7 +270,6 @@ def corr_lims_unshared_mat(A,B,errdist=False,pcorrs=False,errdist_perms=1000,dof
         max_var=maximum(A.covs.max(),B.covs.max())
 
         # gen variances
-        n_samps = 200.0
         ww=(tril_indices(shp[-1],k=-1))
         ppA=zeros((init_samps,init_samps,shp[0],len(ww[0])))
         ppB=zeros((init_samps,init_samps,shp[0],len(ww[0])))
