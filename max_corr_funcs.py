@@ -57,46 +57,32 @@ def corr_lims_mat(A,B,errdist=False,pcorrs=False,errdist_perms=1000,dof=[],pctl=
     pctls=[]
 
     if errdist:
+
         shp=covsA.shape
 
         corr_maxa_neg_err=zeros((errdist_perms,shp[0],shp[1],shp[1]))
         corr_maxa_err=zeros((errdist_perms,shp[0],shp[1],shp[1]))
 
         for a in arange(shp[0]):
-            whA=scipy.stats.wishart(dof,covsA[a,:,:])
-            whB=scipy.stats.wishart(dof,covsB[a,:,:])
+            # inv wishart distribution for covariance 
+            whA=scipy.stats.invwishart(dof,covsA[a,:,:]*(dof-1))
+            whB=scipy.stats.invwishart(dof,covsB[a,:,:]*(dof-1))
             
             covsA_sim=whA.rvs(errdist_perms)/(dof)
             covsB_sim=whB.rvs(errdist_perms)/(dof)
 
-            ppA=zeros((1,errdist_perms))
-            ppB=zeros((1,errdist_perms))
-            
-            whA=[]
-            whB=[]
-
-            for b in arange(errdist_perms):
-                whA.append(scipy.stats.wishart(dof,covsA_sim[b,:,:]))
-                ppA[0,b]=whA[-1].pdf(covsA[a,:,:]*dof)
-                whB.append(scipy.stats.wishart(dof,covsB_sim[b,:,:]))
-                ppB[0,b]=whB[-1].pdf(covsB[a,:,:]*dof)
-           
-            ppA=ppA/sum(ppA)
-            ppB=ppB/sum(ppB)
-            # select var
-            ppA_cul=(dot(ppA,triu(ones(len(ppA.T)))).T) 
-            ppB_cul=(dot(ppB,triu(ones(len(ppB.T)))).T) 
-            rand_els = scipy.stats.uniform(0,1).rvs(errdist_perms) 
-            els=sort(searchsorted(ppA_cul.flatten(),rand_els)) 
-
             for b in arange(errdist_perms):
 
-                A_sim=FC(whA[els[b]].rvs(),cov_flag=True)
-                B_sim=FC(whB[els[b]].rvs(),cov_flag=True)
+                whA=scipy.stats.wishart(dof,covsA_sim[a,:,:])
+                whB=scipy.stats.wishart(dof,covsB_sim[a,:,:])
+
+                A_sim=FC(whA.rvs(),cov_flag=True)
+                B_sim=FC(whB.rvs(),cov_flag=True)
 
                 tmp,_,_ = corr_lims_mat(A_sim,B_sim,dof=dof) 
                 corr_maxa_neg_err[:,a,:,:]=tmp[0]
                 corr_maxa_err[:,a,:,:]=tmp[1]
+
         corr_maxa_err[abs(corr_maxa_err)>1]=sign(corr_maxa_err[abs(corr_maxa_err)>1]) 
         pctl_out = [percentile(corr_maxa_err,pctl,0),percentile(corr_maxa_err,100-pctl, 0)]
 
