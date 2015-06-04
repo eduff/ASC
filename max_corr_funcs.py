@@ -264,18 +264,62 @@ def corr_lims_unshared_mat(A,B,errdist=False,pcorrs=False,errdist_perms=1000,dof
 
     if errdist:
         shp=covsA.shape
-        init_samps=errdist_perms*10
+        init_samps=errdist_perms
         init_dof=3
+        n_samps=50
+        max_var=maximum(A.covs.max(),B.covs.max())
 
+        # gen variances
+        n_samps = 200.0
+        ww=(tril_indices(shp[-1],k=-1))
+        ppA=zeros((init_samps,init_samps,shp[0],len(ww[0])))
+        ppB=zeros((init_samps,init_samps,shp[0],len(ww[0])))
+        rands=zeros((init_samps,init_samps,2,2))
+        flat_covs=zeros((len(ww[0]),2,2))
+
+
+        for a in arange(n_samps):
+            # variance of prior dist
+            vvar=(a+1)*max_var/(n_samps+1.0)        
+            for b in arange(n_samps):
+                # cov of prior dist
+                ccovar=(2*(b)*vvar- n_samps*vvar)/(n_samps+1)   
+                # generate distn   
+                wh=scipy.stats.wishart(dof,array([[vvar,ccovar],[ccovar,vvar]]))
+                # generate probs for all covs
+                cnt=0
+                for sess in arange(shp[0]):
+                    flat_covs=zeros((len(ww[0]),2,2))
+
+                    flat_covs[:,1,0]=covsA[0,ww[0],ww[1]]
+                    flat_covs[:,0,1]=covsA[0,ww[0],ww[1]]
+                    flat_covs[:,0,0]=covsA[0,ww[0],ww[0]]
+                    flat_covs[:,1,1]=covsA[0,ww[1],ww[1]]
+
+                    ppA[a,b,sess,:]=wh.pdf(flat_covs.swapaxes(0,2)*dof)
+
+                    flat_covs[:,1,0]=covsB[0,ww[0],ww[1]]
+                    flat_covs[:,0,1]=covsB[0,ww[0],ww[1]]
+                    flat_covs[:,0,0]=covsB[0,ww[0],ww[0]]
+                    flat_covs[:,1,1]=covsB[0,ww[1],ww[1]]
+
+                    ppB[a,b,sess,:]=wh.pdf(flat_covs.swapaxes(0,2)*dof)
+                #gens[a,:,:,:]=whA.rvs(1000)/100
+            print(a) 
+        sdf
         unshared_lims_err=zeros((errdist_perms,shp[0],shp[1],shp[1]))
 
-        ppA=zeros((init_samps))
         ppB=zeros((init_samps))
 
         for a in arange(shp[0]):
-            # generate init samples
-            whA=scipy.stats.wishart(init_dof,array([[1,0],[0,1]]))
-            whB=scipy.stats.wishart(init_dof,covsB[a,:,:])
+            for b in arange(shp[1]):
+                # generate init samples
+                whA=scipy.stats.wishart(init_dof,array([[1,0],[0,1]]))
+                rands=whA.rvs(init_samps)/init_dof
+                ppA[0]=whA.pdf(covsA[a,:,:]*dof)
+                
+                whA=scipy.stats.wishart(init_dof,array([[1,0],[0,1]]))
+            whB=scipy.stats.wishart(init_dof,array([[1,0],[0,1]]))
             
             covsA_sim=whA.rvs(init_samps)/(init_dof)
             covsB_sim=whB.rvs(init_samps)/(init_dof)
