@@ -1,10 +1,9 @@
 from matplotlib.colors import LinearSegmentedColormap
 import mne
-
 import scripts2
 #import ml_funcs
 import seaborn as sns
-
+import numpy as np
 import scipy, glob,re, os.path
 import scipy.stats as stats
 from matplotlib.pylab import find
@@ -28,12 +27,12 @@ from mne.viz import plot_connectivity_circle
 if os.path.isfile(data_pre+'ROI_order.txt'):
     ROI_order=loadtxt(data_pre+'ROI_order.txt').astype(int)-1
 #else:
-#    ROI_order=arange(len(ROI_names))
+#    ROI_order=range(len(ROI_names))
 
 if os.path.isfile(data_pre+'ROI_RSNs.txt'):
     ROI_RSNs=(loadtxt(data_pre+'ROI_RSNs.txt').astype(int))
 else:
-    ROI_RSNs=arange(len(ROI_order))
+    ROI_RSNs=np.arange(len(ROI_order))
 
 if os.path.isfile('goodnodes.txt'):
     goodnodes=loadtxt('goodnodes.txt').astype(int)

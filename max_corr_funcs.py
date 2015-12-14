@@ -91,7 +91,6 @@ def corr_lims_mat(A,B,pcorrs=False,errdist=False,errdist_perms=1000,dof=[],pctl=
         pctls = (Bcorrs> minimum(pctl_out_neg[0] , pctl_out_neg[1])) != (Bcorrs> maximum(pctl_out[0] ,  pctl_out[1]))
         return([corr_mina, corr_maxa],pctls,[corr_mina_err, corr_maxa_err])
     else:
-    ## return(unshared,unshared_lims_err,pctl_out)
         return(corr_mina, corr_maxa)
 
     #return([corr_maxa_neg, corr_maxa],[corr_maxa_neg_err, corr_mina_err],[pctl_out_neg,pctl_out])
@@ -196,7 +195,6 @@ class FC:
             
             self.pcorrs=zeros(self.corrs.shape)
             for a in range(len(self.pcorrs)):
-                pinvA=linalg.pinv(self.corrs[a,:,:])
                 iis=tile(atleast_2d(pinvA.diagonal()).T,self.covs.shape[1])
                 tmp=-pinvA/sqrt(iis*iis.T)
                 tmp[where(eye(tmp.shape[0]))]=1
@@ -601,7 +599,6 @@ def calc_noerr(ccs,cc,vvs_all,vv1,vv2):
     out_common_u=zeros(len(vv2))
     out_lim_l=zeros(len(vv2))
     out_lim_u=zeros(len(vv2))
-
     for cnt in range(len(vv2)):
         
         ooA[[0,1],[1,0]]=ccs[cc[cnt]]
@@ -649,7 +646,6 @@ def func_star(a_b):
         os.nice(5-niceness)
         return calc_hists(*a_b)
 
-
 def runwithvv2(c):
     vv1s=range(len(vvs_all))
     args=itertools.izip(itertools.repeat(ccs),itertools.repeat(ccval),itertools.repeat(vvs_all),vv1s,itertools.repeat(vv1s),itertools.repeat(100),itertools.repeat(100))
@@ -659,7 +655,7 @@ def runwithvv2(c):
     pool.join()
     return(out,pool)
 
-def plot_fb(ccs,low,high,vvs=[],cmap=cm.gray):
+def plot_fb(ccs,low,high,vvs=[],cmap=cm.gray,colorbar=True):
    
     fig=pl.gcf()
     pl.plot(ccs,ccs,color=[0.55,0.55,0.55],label='Test',linewidth=5)
@@ -673,8 +669,9 @@ def plot_fb(ccs,low,high,vvs=[],cmap=cm.gray):
 
     if vvs != []:
         cc=ax.pcolor(array([[.2]]),cmap=cmap,visible=False,vmin=min(vvs),vmax=max(vvs))      
-        cbar=pl.colorbar(cc,shrink=0.5,ticks=vvs,fraction=0.1)
-        cbar.set_label('Proportional change in variance \n in region one in second condition.')
+        if colorbar:
+            cbar=pl.colorbar(cc,shrink=0.5,ticks=vvs,fraction=0.1)
+            cbar.set_label('Proportional change in variance \n in region one in second condition.')
 
     ax.set_ylim(-1,1)
     
@@ -682,3 +679,6 @@ def plot_fb(ccs,low,high,vvs=[],cmap=cm.gray):
     ax.set_ylabel('Correlation in condition 2')
 
     # ax.set_title('Change in correlation after adding/removing common signal')
+
+def plot_diffs(A,B,thr):
+    print(A)

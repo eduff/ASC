@@ -1,6 +1,8 @@
 from numpy import *
 import numpy as np
 import matplotlib.pylab as pl
+import matplotlib.colors as clrs
+import matplotlib.cm as cm
 import glob,os
 import nibabel as nb
 
@@ -273,7 +275,7 @@ def plot_corr_example():
 
 
     for img in [0,1]:
-        fig=plt.figure(figs[img]) 
+        fig=pl.figure(figs[img]) 
         fig.clf()
         vvs=vvs_all[els[img][0]:(els[img][0]+8)]
 
@@ -285,18 +287,18 @@ def plot_corr_example():
 
         cdict = {'red': ((0,0.133333,0.13333),(1,0.31,0.31)),'green':((0,0.133333,0.13333),(1,0.47,0.47)),'blue': ((0,0.133333,0.13333),(1,0.78,0.78))}
 
-        cmap=get_cmap('BlueBlue')
-        blue_blue = LinearSegmentedColormap('BlueBlue', cdict)
-        register_cmap(cmap=blue_blue)
-                
+        blue_blue = clrs.LinearSegmentedColormap('BlueBlue', cdict)
+        cm.register_cmap(cmap=blue_blue)
+        cmap=cm.get_cmap('BlueBlue')       
+
         for a in arange(len(vvs)):
-            fill_between(ccs,out[:,a,0],out[:,a,1],color=pllt[-(a+1),:],label=str(stds[a]))
-            plt.plot([],[],color=pllt[-(a+1),:],label=str(stds[a]),linewidth=15)
+            pl.fill_between(ccs,out[:,a,0],out[:,a,1],color=pllt[-(a+1),:],label=str(stds[a]))
+            pl.plot([],[],color=pllt[-(a+1),:],label=str(stds[a]),linewidth=15)
 
         X=array([0.0001,0.0001])
         Y=array([0.0001,0.0001])
 
         cc=ax.pcolor(X,Y,array([[vvs[0],vvs[0]],[vvs[1],vvs[1]]]),cmap=cmap)      
-        colorbar()
+        pl.colorbar()
 
 

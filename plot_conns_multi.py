@@ -1,39 +1,34 @@
 from matplotlib.colors import LinearSegmentedColormap
 import mne
-
-import scripts2
-#import ml_funcs
 import seaborn as sns
-
-import scipy, glob,re, os.path
-import scipy.stats as stats
+import numpy as np
+import scipy, os.path
 from matplotlib.pylab import find
 import itertools
-#from ml_funcs import corr_calc
 import colorline
 from colorline import colorline
 from matplotlib.colors import ListedColormap, BoundaryNorm
-from matplotlib.collections import LineCollection
-
-#t21=ml_funcs.transp21
-#rtoz=ml_funcs.rtoz
-
 from operator import mul
 from fractions import Fraction
-
 from mne.viz import plot_connectivity_circle
 
-#data_pre='out_'
+# from matplotlib.collections import LineCollection
+#t21=ml_funcs.transp21
+#rtoz=ml_funcs.rtoz
+## load text info 
+data_pre='' # out_' 
+prefix='dr_stage1'
+filt=0
+img=0
+figadd=10
 
 if os.path.isfile(data_pre+'ROI_order.txt'):
     ROI_order=loadtxt(data_pre+'ROI_order.txt').astype(int)-1
-#else:
-#    ROI_order=arange(len(ROI_names))
 
 if os.path.isfile(data_pre+'ROI_RSNs.txt'):
     ROI_RSNs=(loadtxt(data_pre+'ROI_RSNs.txt').astype(int))
 else:
-    ROI_RSNs=arange(len(ROI_order))
+    ROI_RSNs=np.arange(len(ROI_order))
 
 if os.path.isfile('goodnodes.txt'):
     goodnodes=loadtxt('goodnodes.txt').astype(int)
@@ -53,11 +48,11 @@ if os.path.isfile('ROI_names.txt'):
 ROI_names=ROI_names[ROI_order]
 n_nodes=len(ROI_names)
 
-cond_names=open('../cond_names.txt').read().splitlines()
-#RSN_names=array(open('../RSN_names.txt').read().splitlines())
+if os.path.isfile('../cond_names.txt'):
+    cond_names=open('../cond_names.txt').read().splitlines()
+    #RSN_names=array(open('../RSN_names.txt').read().splitlines())
 
-def nCk(n,k): 
-    return int( reduce(mul, (Fraction(n-i, i+1) for i in range(k)), 1) )
+## define plotting colour scheme
 
 plotcolors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
 
@@ -86,10 +81,23 @@ register_cmap(cmap=blue_red1)
 cmap2=matplotlib.colors.ListedColormap(name='Test',colors=plotcolors)
 register_cmap(cmap=cmap2)
 
+current_palette = sns.color_palette()
+sb_cols=current_palette + current_palette + current_palette 
+group_cols=[]
+
+for a in ROI_RSNs:                          
+    group_cols.append(sb_cols[a-1])
+
+## define indices, contrasts, nodes
+
 indices=triu_indices(n_nodes,1)
 
 contrs_all=[]
-conds=5
+conds=len(cond_names)
+
+def nCk(n,k): 
+    return int( reduce(mul, (Fraction(n-i, i+1) for i in range(k)), 1) )
+
 outsize=nCk(conds,2)
 
 for a in itertools.combinations(np.arange(conds),2):
@@ -103,27 +111,13 @@ dist_mat[np.diag_indices(n_nodes)] = 1e9
 node_width = np.min(np.abs(dist_mat))
 node_edgecolor='black'
 
-#sb_cols=[(0.2980392156862745, 0.4470588235294118, 0.6901960784313725),
-# (0.3333333333333333, 0.6588235294117647, 0.40784313725490196),
-# (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)]
+#for aaa in [2]:   #for aaa in arange(outsize):
+for aaa in arange(2):
 
-current_palette = sns.color_palette()
-sb_cols=current_palette + current_palette + current_palette 
-group_cols=[]
-
-for a in ROI_RSNs:                          
-    group_cols.append(sb_cols[a-1])
-
-#for aaa in [2]:
-for aaa in arange(1):
-#for aaa in arange(outsize):
-
-    #contrs=[contrs_all[aaa][::-1]]
     contrs=[contrs_all[aaa][::-1]]
-
     fig=plt.figure(1)
-    #prefix='wa'
     execfile('/home/fs0/eduff/code/ampconn/scripts.py')
+
     fig=plt.figure(aaa+figadd)
     data=ccstatsmat[0,:]
     inds=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(data)))[0])
@@ -180,7 +174,6 @@ for aaa in arange(1):
     #    ccols.append(blue_red1(plotcolors[changes[a]]))
 
     inds_orig=inds.copy()
-    #plot_connectivity_circle(data[inds],ROI_names,(indices[0][inds],indices[1][inds]),fig=fig,colormap='BlueRed1',vmin=-6,vmax=6,node_colors=vcols)   
 
     titles=["Change in shared signal","Change in unshared signal","Change in both shared and unshared signals","Change in synchronisation"]
     for b in arange(4):
@@ -188,6 +181,7 @@ for aaa in arange(1):
         inds=intersect1d(inds_orig,find(changes==b))
 
         fontsize=7
+        sdf
         pp=plot_connectivity_circle(ccstatsmat[0,inds].astype(float),ROI_names[0:n_nodes],(indices[0][inds],indices[1][inds]),fig=fig,colormap='BlueRed1',vmin=-3,vmax=3,node_colors=vcols,subplot=241+b,title=titles[b],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black') 
 
         ax=gca()

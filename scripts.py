@@ -6,44 +6,47 @@ import glob,re
 import scipy.stats as stats
 from matplotlib.pylab import find
 import itertools
-from ml_funcs import corr_calc
 t21=ml_funcs.transp21
 rtoz=ml_funcs.rtoz
 
 from operator import mul
 from fractions import Fraction
 
-def nCk(n,k): 
-    return int( reduce(mul, (Fraction(n-i, i+1) for i in range(k)), 1) )
-    
 #conds=5
 #contrs=[[0,1]]
 #contrs=[] # [[0,4]]
-datamat=ml_funcs.dr_loader('.',subjs=5,prefix=prefix)
 
-if 'ROI_order' in locals():
-    oo=1
-else:
+# datamat load/preprocess
+
+datamat=ml_funcs.dr_loader('.',subjs=conds,prefix=prefix)
+
+if not('ROI_order' in locals()):
     ROI_order=arange(datamat[0].shape[1])
     
+# reorganise
 datamat=datamat[:,:,ROI_order,:]
 
+# bp filter option
 if filt:
     (b,a)=signal.filter_design.butter(5,[lf*TR,uf*TR],'bandpass')
     datamat=signal.filtfilt(b,a,datamat)
 
+# plotDR(dirname,covtype='Corr',
 #out=nitime.algorithms.multi_taper_psd(datamat,TR)
 
 #(datamat,corrmat,varmat)=ml_funcs.dr_loader('.',types=conds,prefix='dr_stage1_nodemean')
 #(datamat,corrmat,varmat)=ml_funcs.dr_loader('.',types=conds)
+
+# calculate NETMAT 
 covtype='Corr'
 prec_flag=False
+
 paramsOrig=[[]]
-(corrmat,params,paramNames)=corr_calc(datamat,covtype,prec_flag=prec_flag,cc_flag=(not prec_flag),params=paramsOrig)
+(corrmat,params,paramNames)=ml_funcs.corr_calc(datamat,covtype,prec_flag=prec_flag,cc_flag=(not prec_flag),params=paramsOrig)
 corrmat=corrmat[params[0]]
 
 covtype='Cov'
-(varmat,params,paramNames)=corr_calc(datamat,covtype,prec_flag=prec_flag,cc_flag=(not prec_flag),params=paramsOrig)
+(varmat,params,paramNames)=ml_funcs.corr_calc(datamat,covtype,prec_flag=prec_flag,cc_flag=(not prec_flag),params=paramsOrig)
 varmat=varmat[params[0]]
 inds=arange(varmat.shape[-1])
 varmat=varmat[:,:,inds,inds]
@@ -95,8 +98,8 @@ for val in contrs:
     tmp=(stats.ttest_rel((varmat[val[0],:,:]**.5),(varmat[val[1],:,:]**.5))[0])
     #vvs[cnt,:] = ml_funcs.flattenall(ml_funcs.crossfunc((tmp),maximum))
     #vvst[cnt,:] = ml_funcs.flattenall(t21(ml_funcs.crossfunc((tmp),maximum)))
-    vvs[cnt,:]=ml_funcs.triuall(tile(tmp,(rois,1)))
-    vvst[cnt,:]=ml_funcs.triuall(tile(tmp,(rois,1)).T)
+    vvs[cnt,:]=ml_funcs.triu_all(tile(tmp,(rois,1)))
+    vvst[cnt,:]=ml_funcs.triu_all(tile(tmp,(rois,1)).T)
 
     # match sign of vvs to corr change
 
@@ -127,9 +130,6 @@ la=logical_and
 lo=logical_or
 edge=0
 
-#out_orig=scripts2.range(ccmat1,ccmat2,vvmat1a**.5,vvmat2a**.5,vvmat1b**.5,vvmat2b**.5)
-
-
 # near zero testing
 ccmat1_orig=ccmat1.copy()
 ccmat2_orig=ccmat2.copy()
@@ -139,18 +139,7 @@ ccmat1nz= find((abs(ccmat1)<0.1) & (sign(ccmat1)==-sign(ccmat2)))
 ccmat2nz= find((abs(ccmat2)<0.1) & (sign(ccmat1)==-sign(ccmat2)))
 #ccmat2[0,ccmat2nz]=-ccmat2[0,ccmat2nz]*0.1
 
-
 out=scripts2.range(ccmat1,ccmat2,vvmat1a**.5,vvmat2a**.5,vvmat1b**.5,vvmat2b**.5)
-#out=scripts2.range(ccmat1,ccmat2,vvmat1a**.5,vvmat1b**.5,vvmat2a**.5,vvmat2b**.5)
-#for a in arange(len(bins)-1):
-#    ids[a]=where(la(abs(ccstatsmat)>bins[a],abs(ccstatsmat)<bins[a+1]))
-#    ppns[a,0]=sum(minimum(vvs_s[ids[a]],vvst_s[ids[a]])>edge)
-#    ppns[a,2]=sum(maximum(vvs_s[ids[a]],vvst_s[ids[a]])<-edge)
-#    ppns[a,1]=sum(la(maximum(vvs_s[ids[a]],vvst_s[ids[a]])>edge,abs(minimum(vvs_s[ids[a]],vvst_s[ids[a]]))<edge))
-#    ppns[a,3]=sum(la(minimum(vvs_s[ids[a]],vvst_s[ids[a]])<-edge,abs(maximum(vvs_s[ids[a]],vvst_s[ids[a]]))<edge))
-#    ppns[a,4]=sum(la(maximum(vvs_s[ids[a]],vvst_s[ids[a]])>edge,(minimum(vvs_s[ids[a]],vvst_s[ids[a]]))<-edge))
-#    ppns[a,5]=sum(maximum(abs(vvs_s[ids[a]]),abs(vvst_s[ids[a]]))<edge)
-#
 
 for a in arange(len(bins)-1):
     ids[a]=where(la(abs(ccstatsmat)>bins[a],abs(ccstatsmat)<bins[a+1]))
