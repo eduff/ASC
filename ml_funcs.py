@@ -10,9 +10,11 @@ import numpy as np
 from numpy import *
 from pylab import find,is_numlike
 import pylab
-import cPickle
+import pickle
 import sklearn
 from sklearn import covariance, svm, grid_search
+from functools import reduce
+
 skcv=sklearn.cross_validation
 
 def dr_loader(dir,conds=1,prefix='dr_stage1',subjs=[],subjorder=True):
@@ -118,6 +120,14 @@ def flattenall(x,nd=2):
             outmat=x
     return outmat
 
+
+def flattenall_inds(x,dims):
+    if len(dims)==3:
+        dims=dims[1:]
+    out = where(triu(ones(dims),1))
+
+    return(array([out[0][x],out[1][x]]))
+    
 def maxratio(xx,yy):
     return(maximum(abs(xx/yy),abs(yy/xx)))
 
@@ -239,11 +249,11 @@ def corr_calc(data, covtype,params=[[]],prec_flag=False,cc_flag=True,savefile=[]
     if savefile != []:
         if cc_flag==True: 
             f=file(covtype+'_cc.dat','w')
-            cPickle.dump(outcorr_l,f)
+            pickle.dump(outcorr_l,f)
             f.close()
         if prec_flag==True:
             f=file(covtype+'_prec.dat','w')
-            cPickle.dump(outprec_l,f)
+            pickle.dump(outprec_l,f)
             f.close()
 
     return(corrmat,params,array(paramNames))
@@ -571,7 +581,7 @@ def dr_loader_helper(covtype,ev='design.mat',con='design.con',prefix='dr_stage1'
 
         else:
             f=file(filename)
-            corrmat=cPickle.load(f)
+            corrmat=pickle.load(f)
 
             # Recalculate if different params
             if type(corrmat) == dict:
@@ -601,3 +611,6 @@ def make_paramNames(params,dirnames):
         out.append(str(aa[0])+'_'+aa[1]+'c')
     return(array(paramout),array(out))
 
+
+#def std_ext(x,n):
+#    return (tile(std(rnds,1),(230,1)).T))

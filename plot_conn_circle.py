@@ -19,7 +19,7 @@ from fractions import Fraction
 from mne.viz import plot_connectivity_circle
 rtoz=ml.rtoz
 
-def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig=''):
+def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5):
     
     # basic settings
 
@@ -107,7 +107,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     # stats generation
  
     ccstatsmat=-fa(stats.ttest_rel(rtoz(A_orig.get_corrs()),rtoz(B_orig.get_corrs()))[0])
-    inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmat)),alpha=0.1)[0])
+    inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmat)),alpha=0.05)[0])
 
     # get std (remove stats due to rounding in simulations)
     A_orig_stds = np.round(A_orig.get_stds(),6)
@@ -115,7 +115,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     
     vvstatsmat=-(stats.ttest_rel(A_orig_stds,B_orig_stds)[0])
     vvpctg = (B_orig_stds - A_orig_stds)/(A_orig_stds)
-    inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.1)[0])
+    inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.05)[0])
 
     if A_orig.tcs == []: 
         A=cf.FC(np.mean(A_orig.get_covs(),0),cov_flag=True, dof=A_orig.dof)
@@ -152,15 +152,15 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     #for a in ndindex(varmat.shape[0:2]):
     #    varvarmat[a][ix_(np.arange(varmat.shape[-1]),np.arange(varmat.shape[-1]))]=tile(varmat[a],(rois,1))
     #sz=varmat.shape[-1]
-    lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=10,show_pctls=True)
+    lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,show_pctls=True)
     # incl_zeros = stats.norm.ppf(lims['covs']['incl_zeros'])
     incl_zeros = lims['covs']['incl_zeros']
 
     # ccstatsmat = lims['covs'][ 
 
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
-    plots = ['unshared','shared','combined','other']
-    titles= {'unshared':"Addition of uncorrelated signal", 'shared':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explainable by simple signal additions"}
+    plots = ['unshared','common','combined','other']
+    titles= {'unshared':"Addition of uncorrelated signal", 'common':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explained \n by simple signal additions"}
     notin=inds_cc
     inds_plots={}
     vmax=3
@@ -171,21 +171,20 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     inds_plots['other'] = notin
 
     if exclude:
-        inds_plots['shared']=np.setdiff1d(inds_plots['shared'],inds_plots['unshared'])
-        inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['shared'])
+        inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['unshared'])
+        inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
     cnt=-1
     fontsize=9 
 
     for plot in plots:
-
         cnt+=1
-        pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=cnt) 
+        pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0) 
 
         ax=plt.gca()
         ax.set_title(titles[plot],color='black') 
         
-        bars = pp[1].bar(node_angles, height*2, width=node_width, bottom=10, \
+        bars = pp[1].bar(node_angles, height*2.2, width=node_width, bottom=10.4, \
                         edgecolor='0.9', lw=2, facecolor='.9', \
                         align='center',linewidth=1)
        
@@ -202,7 +201,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
         #ax.text(.8,18,'DMN',size=10,color='black')
         #ax.text(2.8,21,'Motor',size=10,color='black')
         #ax.text(5,18,'Visual',size=10,color='black')
-        sdf
    
         sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
 
@@ -217,8 +215,8 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
         # extended ii for fill_betweens
 
-        if cnt == 1:
-            sdf
+        # if cnt == 1:
+        #    sdf
  
         if len(ii)>0: 
             width=np.max((20,len(ii)+10))
@@ -250,12 +248,12 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
             if len(fbwx)==1:            
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,alpha=0.4)
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['shared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['shared']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['shared']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['shared']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
+                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
 
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
             else:
                 plt.fill_between(fbwx,fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],alpha=0.4)
-                plt.fill_between(fbwx,fa(lims['shared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['shared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
+                plt.fill_between(fbwx,fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
 
             iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
@@ -276,7 +274,8 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
             line2=plt.scatter((xes)[find(iipospos)],Bcorrs[0,inds_plots[plot][iipos]].T,color='blue',zorder=2)
             line2=plt.scatter((xes)[find(iinegpos)],Bcorrs[0,inds_plots[plot][iineg]].T,color='red',zorder=2)
-            line1=plt.scatter(xes,Acorrs[0,inds_plots[plot][ii]].T,color='white',zorder=2)
+            line2=plt.scatter((xes)[find(iipospos)],Acorrs[0,inds_plots[plot][iipos]].T,color='white',zorder=2)
+            line2=plt.scatter((xes)[find(iinegpos)],Acorrs[0,inds_plots[plot][iineg]].T,color='white',zorder=2)
             # color line two according to pos or neg change
             cmap=ListedColormap([(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196), (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)])
             norm= BoundaryNorm([-2,0,1,2],cmap.N)
@@ -286,7 +285,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
             colorline(fbwx[:-1], z+1.05,ROI_RSNs[indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             colorline(fbwx[:-1], z+1.1,ROI_RSNs[indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             plt.show()
-    sdf
+
     if savefig!='':
         fig.savefig(savefig)
 

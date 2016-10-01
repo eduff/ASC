@@ -1,118 +1,166 @@
+
 from numpy import *
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
 import max_corr_funcs as cf
-import matplotlib.pyplot as mp
+import matplotlib.pyplot as plt
+import os,numbers
+#import argparse
 
-FC=cf.FC
-img=0
-repeat_fig=0
-calcflag=1
-# set img, calcflag,
-ccs=arange(-.999,1,0.01)
 
-vvs_all = r_[arange(-0.25,0,0.025)+1,arange(.2,0,-00.025)+1]**.5
-#vvs_all = array([0.95])
-if img==0:
-    vvs=vvs_all[:10]
-else:
-    vvs=vvs_all[10:]
+def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined',plotExt='',vInds=[]):
 
-stds=vvs*100
+    if type(ccs) == str:
+        ccs=float(ccs)
 
-figs=[8,9]
+    if type(errdist_perms) == str:
+        errdist_perms=float(errdist_perms)
 
-#fig=figure(figs[img]) 
+    if isinstance(ccs,numbers.Number):
+        ccs=[ccs]
 
-if not(repeat_fig):
-    #fig.clf()
-    plot_colour='green'
-else:
-    plot_colour='blue'
+    FC=cf.FC
+    img=0
+    repeat_fig=0
+    if 'calcflag' not in locals():
+        calcflag=1
 
-#ax=gca()
-ooA=ones((2,2))
-ooB=ones((2,2))
-errdist_perms=2500
-dof=1000
-out_hist_unshared=zeros((len(ccs),len(vvs_all),len(ccs)))
-out_hist_lim_l=zeros((len(ccs),len(vvs_all),len(ccs)))
-out_hist_lim_u=zeros((len(ccs),len(vvs_all),len(ccs)))
-out_hist_common_l=zeros((len(ccs),len(vvs_all),len(ccs)))
-out_hist_common_u=zeros((len(ccs),len(vvs_all),len(ccs)))
+    if 'outname' not in locals():
+        outname='test'
 
-if calcflag == 1:
-    out=zeros((len(ccs),len(vvs_all),2,errdist_perms))
-    out_common=zeros((len(ccs),len(vvs_all),2))
-    out_unshared=zeros((len(ccs),len(vvs_all)))
+    if 'show_pctls' not in locals():
+        show_pctls = True
 
-    # for a in arange(8):
-    for cc in arange(len(ccs)):
-        ooA[[0,1],[1,0]]=ccs[cc]
-        ooA[[0,1],[0,1]]=2
+    if 'errdist_perms' not in locals():
+        errdist_perms=0
 
-        tmpA=FC(ooA,cov_flag=True)
-        tmpB=FC(ooB,cov_flag=True)
-        #display(cc)
-        for vv in arange(len(vvs_all)):
+    vvs_all_1 = r_[arange(-0.5,0,0.05)+1,(arange(.5,0,-00.05)[::-1])+1]
+    vvs_all_2 = ones(vvs_all_1.shape)
+    vvs_all_2 = r_[arange(-0.5,0,0.05)+1,(arange(.5,0,-00.05)[::-1])+1]
 
-            ooB[[0,1],[0,1]]=vvs_all[vv]
-            ooB[[0,1],[1,0]]=ccs[cc]*vvs_all[vv]
-            #tmp=max_corr_funcs_diff.corr_lims_2(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
-            tmp=cf.corr_lims(1.0,vvs_all[vv],1.0,vvs_all[vv],ccs[cc])
-            tmp=cf.corr_lims(1.0,vvs_all[vv],1.0,1,ccs[cc])
-            #tmp=scripts2.range(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
-            #out[cc,vv,:]=[tmp[0][0],tmp[0][1]]
-            out_unshared=cf.corr_lims_unshared_mat(tmpA,tmpB,errdist=True,errdist_perms=errdist_perms,pctl=5,dof=dof)
-            out_hist_unshared[cc,vv,:]=mp.hist(out_unshared[2][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
+    if vInds == []:
+        vInds= arange(len(vvs_all_1)-1,0,-1)
+    elif isinstance(vInds,numbers.Number):
+        vInds = [vInds]
 
-            out_common=cf.corr_lims_common_mat(tmpA,tmpB,errdist=True,errdist_perms=errdist_perms,pctl=5,dof=dof)
-            out_hist_common_l[cc,vv,:]=mp.hist(out_common[2][0][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
-            out_hist_common_u[cc,vv,:]=mp.hist(out_common[2][1][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
+    stds_1=vvs_all_1**.5
+    stds_2=vvs_all_2**.5
 
-            out_lims=cf.corr_lims_mat(tmpA,tmpB,errdist=True,errdist_perms=errdist_perms,pctl=5,dof=dof)
+    figs=[8,9]
 
-            out_hist_lim_l[cc,vv,:]=mp.hist(out_lims[2][0][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
-            out_hist_lim_u[cc,vv,:]=mp.hist(out_lims[2][1][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
+    if not(repeat_fig):
+        plot_colour='green'
+    else:
+        plot_colour='blue'
 
-            #out_common[cc,vv,:]=corr_lims_common(1,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
-            ##out_common[cc,vv,:]=calc_rho_xyb(1,vvs_all[vv],std_y,1,ccs[cc])
-            #out_unshared[cc,vv]=corr_lims_unshared(std_x,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
-            ##out_unshared[cc,vv]=calc_rho_unshared(std_x,vvs_all[vv],std_y,1,ccs[cc])
-        savez('out_hists2.npz',out_hist_unshared,out_hist_lim_l,out_hist_lim_u,out_hist_common_l,out_hist_common_u)
-        
+    ooA=ones((2,2))
+    ooB=ones((2,2))
+
+    dof=1000
+
+    if calcflag == 1:
+        out={}
+
+        if errdist_perms > 0:
+            type_list=['min','max','min_pctls','max_pctls','pctls_raw','min_pctls_raw','max_pctls_raw']
+        else:
+            type_list=['min','max']
+
+        for us in ['common','unshared','combined']:
+            out[us] = {}
+            for mm in type_list:
+                if mm[-3:] == 'raw':
+                    out[us][mm]=zeros((errdist_perms,len(ccs),len(vvs_all_1)))
+                else:
+                    out[us][mm]=zeros((len(ccs),len(vvs_all_1)))
+
+        # for a in arange(8):
+        for cc in arange(len(ccs)):
+            print(str(cc))
+            ooA[[0,1],[1,0]]=ccs[cc]
+            ooA[[0,1],[0,1]]=1
+
+            tmpA=FC(ooA,cov_flag=True,dof=dof)
+            tmpB=FC(ooB,cov_flag=True,dof=dof)
+
+            #display(cc)
+            for vv in arange(len(vvs_all_1)):
+
+                ooB[0,0]=vvs_all_1[vv]
+                ooB[1,1]=vvs_all_2[vv]
+                ooB[[0,1],[1,0]]=ccs[cc]*(vvs_all_1[vv]*vvs_all_2[vv])**0.5
+                lims = cf.corr_lims_all(tmpA,tmpB,errdist_perms=errdist_perms,pctl=5,dof=dof,show_pctls=show_pctls)
+                # lims[cc,vv] = cf.corr_lims_all(tmpA,tmpB,errdist=True,errdist_perms=errdist_perms,pctl=5,dof=dof)
+
+                for us in ['common','unshared','combined']:
+
+                    for mm in type_list:
+                        if mm in lims[us].keys():
+                            if mm[-3:] == 'raw':
+                                out[us][mm][:,cc,vv]=lims[us][mm][:,0,0,1]
+                            else:
+                                out[us][mm][cc,vv]=lims[us][mm][0,0,1]
+                        
+                ## out_unshared[cc,vv]=calc_rho_unshared(std_x,vvs_all[vv],std_y,1,ccs[cc])
+
+                print('vv:'+str(vv))
+        if len(ccs)==1:          
+            outname = str(ccs[0]*100)
+
+        savez('out_'+outname+'.npz',out)
 # blue pallette
-for aaa in arange(8):
-    #fig.clf()
-    ax=gca()
+    #return() 
+    if fig == []:
+        return()
+
+    fig.clf()
+
+#loop over variances
+
+    ax=plt.gca()
+
+# blue pallette
+
     pllt=sns.dark_palette("#5178C7",16)
 
     cdict = {'red': ((0,0.151,0.151),(1,0.4,0.4)),'green':((0,0.2,0.2333),(1,0.6,0.6)),'blue': ((0,0.32, 0.32),(1,0.9,0.9))}
 
     blue_blue = LinearSegmentedColormap('BlueBlue', cdict)
-    register_cmap(cmap=blue_blue)
-    cmap=get_cmap('BlueBlue')
+    plt.register_cmap(cmap=blue_blue)
+    cmap=plt.get_cmap('BlueBlue')
 
     cdict2 = {'red': ((0,0.4,0.4),(1,0.151,0.151)),'green':((0,0.6,0.6),(1,0.2,0.2)),'blue': ((0,0.9, 0.9),(1,0.32,0.32))}
     blue_blue_r = LinearSegmentedColormap('BlueBlue_r', cdict2)
-    register_cmap(cmap=blue_blue_r)
-    cmap=get_cmap('BlueBlue_r')
+    plt.register_cmap(cmap=blue_blue_r)
+    cmap=plt.get_cmap('BlueBlue_r')
 
 # green pallette
-
-    pllt=sns.dark_palette("#5178C7", 16)
 
     cdict = {'red': ((0,0.151,0.151),(1,0.4,0.4)),'green': ((0,0.32, 0.32),(1,0.9,0.9)) ,'blue': ((0,0.2,0.2333),(1,0.6,0.6))}
 
     green_green = LinearSegmentedColormap('GreenGreen', cdict)
-    register_cmap(cmap=green_green)
-    cmap=get_cmap('GreenGreen')
+    plt.register_cmap(cmap=green_green)
+    cmap=plt.get_cmap('GreenGreen')
 
     cdict2 = {'red': ((0,0.4,0.4),(1,0.151,0.151)),'green':((0,0.9, 0.9),(1,0.32,0.32)),'blue': ((0,0.6,0.6),(1,0.2,0.2))}
 
     green_green_r = LinearSegmentedColormap('GreenGreen_r', cdict2)
-    register_cmap(cmap=green_green_r)
-    cmap=get_cmap('GreenGreen_r')
+    plt.register_cmap(cmap=green_green_r)
+    cmap=plt.get_cmap('GreenGreen_r')
+
+# red pallette
+
+    cdict = {'red': ((0,0.2,0.2),(0.5,0.9,0.9),(1,0.9,0.9)),'green': ((0,0.2, 0.2),(.5,0.9,0.9),(1,0.2,0.2)) ,'blue': ((0,0.9,0.9),(0.5,0.9,0.9),(1,0.2,0.2))}
+
+    red_red = LinearSegmentedColormap('RedRed', cdict)
+    plt.register_cmap(cmap=red_red)
+    cmap=plt.get_cmap('RedRed')
+
+    cdict2= {'red': ((0,0.9,0.9),(0.5,0.2,0.2),(0.5,0.9,0.9),(1,0.9,0.9)),'green': ((0,0.9, 0.9),(.5,0.2,0.2),(.5,0.2,0.2),(1,0.9,0.9)) ,'blue': ((0,0.9,0.9),(0.5,0.9,0.9),(0.5,0.2,0.2),(1,0.9,0.9))}
+
+    red_red_r = LinearSegmentedColormap('RedRed_r', cdict2)
+    plt.register_cmap(cmap=red_red_r)
+    cmap2=plt.get_cmap('RedRed_r')
 
     if img==0:
         if plot_colour=='blue':
@@ -125,57 +173,76 @@ for aaa in arange(8):
         else:
             cmap=green_green
 
-    for a in arange(aaa,len(vvs),19):
-        #fill_between(ccs,out[:,a+img*10,0],out[:,a+img*10,1],color=cmap(256-a*256/len(vvs)),label=str(stds[a]))
-        fill_between(ccs,ccs,out[:,a+img*10,1],color=cmap(256-a*256/len(vvs)),label=str(stds[a]))
-        # plt.plot([],[],color=pllt[-(a+1),:],label=str(stds[a]),linewidth=15)
+    cmap=red_red
+    vvs = vvs_all_1
+    if plotExt != '':
+        plotExt = '_' + plotExt
+    
+    for vInd in vInds:
+        if plotExt[-3:]=='raw':
+            pctls =  array([1,5,10,20,30,40])
+            for pctl in pctls:
+                plt.fill_between(ccs,percentile(out[plotType]['min'+plotExt][:,:,vInd],pctl,0),percentile(out[plotType]['max'+plotExt][:,:,vInd],100-pctl,0),color=cmap(128+sign(vInd-10)*pctl*128/40),label=str(stds_1[vInd]))
+                #if vInd>4:
+                #    plt.fill_between(ccs,out['combined']['min'][:,vInd],out['combined']['max'][:,vInd],color=cmap((vInd+1)*256/len(vvs_all)),label=str(stds_1[vInd]))
+        else:
+            plt.fill_between(ccs,out[plotType]['min'+plotExt][:,vInd]-0.01,out[plotType]['max'+plotExt][:,vInd]+0.01,color=cmap(vInd*256/len(vvs_all_1)),label=str(stds_1[vInd]))
 
-    cmap=cm.gray
-
-    for a in arange(aaa,len(vvs),19):
-        fill_between(ccs,out[:,a+img*10,0],ccs,color=cmap(256-a*128/len(vvs)),label=str(stds[a]))
-        # plt.plot([],[],color=pllt[-(a+1),:],label=str(stds[a]),linewidth=15)
-
-    for a in arange(aaa,len(vvs),19):
-
-        cmap=blue_blue
-        fill_between(ccs,out_common[:,a+img*10,0],out_common[:,a+img*10,1],color=cmap(256-a*256/len(vvs)),label=str(stds[a]))
-
-        cmap=green_green
-        fill_between(ccs,out_unshared[:,a+img*10],ccs,color=cmap(256-a*256/len(vvs)),label=str(stds[a]))
-
-        cmap=blue_blue
-        plot(ccs,out_unshared[:,a+img*10],color=cmap(256-a*256/len(vvs)))
-
-
-    X=array([0.0001,0.0001])
-    Y=array([0.0001,0.0001])
-
-
-#cc=ax.pcolor(X,Y,array([[vv,vvs[-1]],[vvs[0],vvs[-1]]]),cmap=cmap)      
-    vvs=r_[vvs,1]
-
-    cmap=green_green
+            #X=array([0.0001,0.0001])
+            #Y=array([0.0001,0.0001])
+            #cc=ax.pcolor(X,Y,array([[vv,vvs[-1]],[vvs[0],vvs[-1]]]),cmap=cmap)      
 
     if not(repeat_fig):
-      cc=ax.pcolor(array([[.2]]),cmap=cmap,visible=False,vmin=min(vvs**2),vmax=max(vvs**2))      
-      cbar=colorbar(cc,shrink=0.5,ticks=vvs**2,fraction=0.1)
+      ax=plt.gca()
+      ax.set_ylim([-1,1])
+      ax.set_xlim([-1,1])
 
-    plot(ccs,ccs,color=[0.9,0.9,0.9],label='Test',linewidth=5)
+    if plotExt[-3:]=='raw':
+
+      cmap=red_red_r
+      cc=ax.pcolor(array([[.3]]),cmap=cmap,visible=False,vmin=min(vvs),vmax=max(vvs))      
+      cbar=plt.colorbar(cc,shrink=0.5,fraction=0.1)
+      cbar.set_ticks(array([min(vvs),1,max(vvs)]))
+
+      pctls_1 = str(-100+abs(array(pctls)).min()/2.0)
+      #pctls_2 = str(-100+abs(array(pctls)).max()/2.0)
+      pctls_3 = str(0)
+      #pctls_4 = str(100-abs(array(pctls)).max()/2.0)
+      pctls_5 = str(100-abs(array(pctls)).min()/2.0)
+
+      cbar.set_ticklabels( [pctls_1,pctls_3, pctls_5])
+      cbar.set_label('Percentile of max/min range of change')
+    else:
+      cc=ax.pcolor(array([[.3]]),cmap=cmap,visible=False,vmin=min(vvs),vmax=max(vvs))      
+      cbar=plt.colorbar(cc,shrink=0.5,ticks=vvs,fraction=0.1)
+      cbar.set_label('Proportional change in variance \n in both regions in second condition.')
+
+    plt.plot(ccs,ccs,color=[0.9,0.9,0.9],label='Test',linewidth=5)
 
     ax.set_xlabel('Correlation in condition 1')
     ax.set_ylabel('Correlation in condition 2')
-    cbar.set_label('Proportional change in variance \n in region one in second condition.')
 
-    if img==0:
-        ax.set_title('Changes in correlation that can be explained \n by decreases in signal amplitude of one region of .'+str(vvs[aaa]**2)+'% in one region')
-        
-        # fig.savefig('Decreases_sim.pdf')
-        #fig.savefig('Decreases_both'+str(aaa)+'.pdf')
+    #if imgtitle==0:
+    ax.set_title('Changes in correlation that can be explained \n by decreases in signal amplitude of one region of .'+str(vvs_all_1[vInds[0]])+'% in one region')
+    
+    # fig.savefig('Decreases_sim.pdf')
+    fig.savefig('Decreases_both'+str(vInds[0])+'.pdf')
 
-    else:
-        ax.set_title('Changes in correlation that can be explained \n by an increase in signal amplitude of '+str(vvs[aaa]**2)+'% in both regions.')
+    #else:
+    #    ax.set_title('Changes in correlation that can be explained \n by an increase in signal amplitude of '+str(vvs_all[vInds[0]])+'% in both regions.')
 
-        #fig.savefig('Increases_both'+str(aaa)+'.pdf')
+    #    fig.savefig('Increases_both'+str(aaa)+'.pdf')
 
 
+
+#
+#if __name__=="__main__":
+#
+#    parser = argparse.ArgumentParser(description="Calc corrs")
+#    parser.add_argument("-e", "--errdist_perms", default=0, help="errdist_perms")
+#    requiredNamed = parser.add_argument_group('required arguments')
+#    requiredNamed.add_argument('-c', '--cc', help='correlation', required=True)
+#    args = parser.parse_args()
+#
+#    plot_sim_err(args.cc,errdist_perms=args.errdist_perms)
+#
