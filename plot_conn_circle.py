@@ -106,9 +106,12 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
     # stats generation
  
-    ccstatsmat=-fa(stats.ttest_rel(rtoz(A_orig.get_corrs()),rtoz(B_orig.get_corrs()))[0])
-    inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmat)),alpha=0.05)[0])
+    ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs()),rtoz(B_orig.get_corrs()))
+    ccstatsmat=-fa(ccstats[0])
+    ccstatsmatp=fa(ccstats[1])
+    inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.05)[0])
 
+    # inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmatp)),alpha=0.2)[0])
     # get std (remove stats due to rounding in simulations)
     A_orig_stds = np.round(A_orig.get_stds(),6)
     B_orig_stds = np.round(B_orig.get_stds(),6)
