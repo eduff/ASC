@@ -1175,7 +1175,7 @@ def get_covs(A,B=None):
     if B is None:
 
         covs=zeros((A.shape[0],A.shape[1],A.shape[1]))
-
+        
         for a in arange(A.shape[0]):
             covs[a,:,:]=cov(A[a,:,:])
     else:
