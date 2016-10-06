@@ -19,10 +19,12 @@ from fractions import Fraction
 from mne.viz import plot_connectivity_circle
 rtoz=ml.rtoz
 
+# plot connectivity matrices from an ICA dir
 def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5):
-    
+     
     # basic settings
 
+    # colours
     plotcolors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
 
     la=np.logical_and
@@ -53,7 +55,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     current_palette = sns.color_palette()
     sb_cols=current_palette + current_palette + current_palette 
     group_cols=[]
-
 
     # loading data
 
@@ -118,7 +119,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     
     vvstatsmat=-(stats.ttest_rel(A_orig_stds,B_orig_stds)[0])
     vvpctg = (B_orig_stds - A_orig_stds)/(A_orig_stds)
-    inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.05)[0])
+    inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.2)[0])
 
     if A_orig.tcs == []: 
         A=cf.FC(np.mean(A_orig.get_covs(),0),cov_flag=True, dof=A_orig.dof)
@@ -180,9 +181,11 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     cnt=-1
     fontsize=9 
 
+    # produce the four plots 
+
     for plot in plots:
         cnt+=1
-        pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0) 
+        pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
         ax=plt.gca()
         ax.set_title(titles[plot],color='black') 
@@ -191,11 +194,12 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
                         edgecolor='0.9', lw=2, facecolor='.9', \
                         align='center',linewidth=1)
        
-        for a in np.arange(len(sb_cols)):
-            sb_cols[a]=(min(sb_cols[a][0]*1.9,1),min(sb_cols[a][1]*1.9,1),min(sb_cols[a][2]*1.9,1))
+        #for aa in np.arange(len(sb_cols)):
+        #    sb_cols[aa]=(min(sb_cols[0][0]*(1.9),1),min(sb_cols[0][1]*(1.9),1),min(sb_cols[0][2]*(1.9),1))
 
-        for a in ROI_RSNs:                          
-            group_cols.append(sb_cols[a-1])
+        for a in ROI_RSNs:     
+            val=1-0.5*a/max(ROI_RSNs)
+            group_cols.append((val,val,val))
 
         for bar, color in zip(bars, group_cols):
             bar.set_facecolor(color)
@@ -216,10 +220,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
         sort_array['f1']=fa(lims[plotrange]['max_pctls'])[0,inds_plots[plot]]
         ii=np.argsort(sort_array,order=['f0','f1'])
 
-        # extended ii for fill_betweens
-
-        # if cnt == 1:
-        #    sdf
  
         if len(ii)>0: 
             width=np.max((20,len(ii)+10))
@@ -275,6 +275,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
             ax.add_patch(line3)
             ax.set_xticks([])
 
+            #
             line2=plt.scatter((xes)[find(iipospos)],Bcorrs[0,inds_plots[plot][iipos]].T,color='blue',zorder=2)
             line2=plt.scatter((xes)[find(iinegpos)],Bcorrs[0,inds_plots[plot][iineg]].T,color='red',zorder=2)
             line2=plt.scatter((xes)[find(iipospos)],Acorrs[0,inds_plots[plot][iipos]].T,color='white',zorder=2)
