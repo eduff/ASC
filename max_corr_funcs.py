@@ -215,6 +215,7 @@ class FC:
             
             self.pcorrs=zeros(self.corrs.shape)
             for a in range(len(self.pcorrs)):
+                pinvA=corr2pcorr(self.corrs[a,:,:])
                 iis=tile(atleast_2d(pinvA.diagonal()).T,self.covs.shape[1])
                 tmp=-pinvA/sqrt(iis*iis.T)
                 tmp[where(eye(tmp.shape[0]))]=1
@@ -415,6 +416,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
 
             for aaa in arange(len(aa)):
                 rho_xb=aa[aaa]
+                Acorrs_abs = abs(Acorrs)
                 (rho_yb_l,rho_yb_u)=calc_pbv(Acorrs,rho_xb)
                 bb= (arange(sim_sampling)/(sim_sampling-1.0)) #/(rho_yb_u-rho_yb_l) + rho_yb_l
                 # loop over range of possible Y corrs
@@ -428,7 +430,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
                 
                 for bbb in arange(len(bb)):
 
-                    rho_yb=sign(Acorrs)*bb[bbb]
+                    rho_yb=sign(Acorrs_abs)*bb[bbb]
                     tmp = calc_weight(Astdmt,Bstdmt,rho_yb)
                     inds_0=[(abs(tmp[0])<abs(tmp[1]))]
                     inds_1=[(abs(tmp[0])>=abs(tmp[1]))]
@@ -436,10 +438,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
                     wy[:]=nan
                     wy[inds_0]=tmp[0][inds_0]
                     wy[inds_1]=tmp[1][inds_1]
-                    corr2Common[:,:,:,aaa,bbb] = (Astdm*Astdmt*Acorrs + wx*Astdm*rho_xb + wy*Astdmt*rho_yb + wx*wy )/(Bstdm*Bstdmt)
+                    corr2Common[:,:,:,aaa,bbb] = (Astdm*Astdmt*Acorrs_abs + wx*Astdm*rho_xb + wy*Astdmt*rho_yb + wx*wy )/(Bstdm*Bstdmt)
                     # prevent negative weights
-                    corr2Common[:,:,:,aaa,:][(sign(Bstdm-Astdm)*wx)<0]=nan
-                    corr2Common[:,:,:,aaa,:][(sign(Bstdmt-Astdmt)*wy)<0]=nan
+                    corr2Common[:,:,:,aaa,bbb][(sign(Bstdm-Astdm)*wx)<0]=nan
+                    corr2Common[:,:,:,aaa,bbb][(sign(Bstdmt-Astdmt)*wy)<0]=nan
                     # prevent negative inital shared components
                     #Aorr2Common[:,:,:,aaa,:][sign(covsA)*==-1]=nan
                     #corr2Common[:,:,:,aaa,:][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
@@ -460,12 +462,15 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
             #corr2Common[:,:,:,pl.find(sign(Acorrs)!=sign(aa)),:]=nan
             #corr2Common[:,:,:,:,pl.find(sign(Acorrs)!=sign(bb))]=nan
             # remove corr sign flips
+
+            corr2Common=corr2Common*sign(Acorr_tile)
             corr2Common[sign(Acorr_tile)!=sign(corr2Common)]=nan
             corr2Common[corr2Common==0]=nan
             corr2Common[corr2Common<-1]=nan
             corr2Common[corr2Common>1]=nan
             #Acorr_tile[corr2Common>=0]=-1
             #corr2Common[corr2Common<Acorr_tile]=nan 
+
 
             #tmp[sign(tmp)!=sign(Acorrs)]=0
             lims_struct[a]['min']=nanmin(nanmin(corr2Common,4),3) 
