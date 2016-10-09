@@ -20,7 +20,7 @@ from mne.viz import plot_connectivity_circle
 rtoz=ml.rtoz
 
 # plot connectivity matrices from an ICA dir
-def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5):
+def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5,minCorrDiff=0):
      
     # basic settings
 
@@ -110,6 +110,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs()),rtoz(B_orig.get_corrs()))
     ccstatsmat=-fa(ccstats[0])
     ccstatsmatp=fa(ccstats[1])
+
     inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.05)[0])
 
     # inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmatp)),alpha=0.2)[0])
@@ -130,6 +131,11 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
     Acorrs=fa(A.get_corrs())
     Bcorrs=fa(B.get_corrs())
+
+    if minCorrDiff != 0:
+        inds_corrdiff = find(abs(Acorrs-Bcorrs)>minCorrDiff)
+        inds_cc = np.intersect1d(inds_corrdiff,inds_cc)
+
 
     vv_norm=vvstatsmat/6
     #vv_norm= vvpctg * 254
@@ -182,7 +188,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     fontsize=9 
 
     # produce the four plots 
-
     for plot in plots:
         cnt+=1
         pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
