@@ -83,8 +83,8 @@ def corr_lims_mat(A,B,pcorrs=False,errdist=False,errdist_perms=1000,dof=[],pctl=
                 whA=scipy.stats.wishart(dof,covsA_sim[a,:,:])
                 whB=scipy.stats.wishart(dof,covsB_sim[a,:,:])
 
-                A_sim=FC(whA.rvs()/dof,cov_flag=True,dofs=600)
-                B_sim=FC(whB.rvs()/dof,cov_flag=True,dofs=600)
+                A_sim=FC(whA.rvs()/dof,cov_flag=True,dofs=dof)
+                B_sim=FC(whB.rvs()/dof,cov_flag=True,dofs=dof)
 
                 tmp = corr_lims_mat(A_sim,B_sim,dof=dof) 
                 corr_maxa_err[b,a,:,:]=tmp[0]
@@ -215,11 +215,8 @@ class FC:
             
             self.pcorrs=zeros(self.corrs.shape)
             for a in range(len(self.pcorrs)):
-                pinvA=corr2pcorr(self.corrs[a,:,:])
-                iis=tile(atleast_2d(pinvA.diagonal()).T,self.covs.shape[1])
-                tmp=-pinvA/sqrt(iis*iis.T)
-                tmp[where(eye(tmp.shape[0]))]=1
-                self.pcorrs[a,:,:]=tmp
+                self.pcorrs[a,:,:]=corr2pcorr(self.corrs[a,:,:])
+               
         return self.pcorrs
     
     def get_covs(self,pcorrs=False):
@@ -368,14 +365,14 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
     elif type(chType)==str:
         chType=[chType]
 
-    covsA=A.get_covs()
-    covsB=B.get_covs()
+    covsA=A.get_covs(pcorrs=pcorrs)
+    covsB=B.get_covs(pcorrs=pcorrs)
 
-    Acorrs=A.get_corrs()   
-    Astds=A.get_stds_m()
+    Acorrs=A.get_corrs(pcorrs=pcorrs)   
+    Astds=A.get_stds_m(pcorrs=pcorrs)
 
-    Bcorrs=B.get_corrs()   
-    Bstds=B.get_stds_m()
+    Bcorrs=B.get_corrs(pcorrs=pcorrs)   
+    Bstds=B.get_stds_m(pcorrs=pcorrs)
     
     shp=A.covs.shape
     Astdm=A.get_stds_m(pcorrs=pcorrs)
@@ -521,8 +518,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
 
             # generate initial cov matrices
             
-            whA=scipy.stats.wishart(dof,covsA[xa,:,:])
-            whB=scipy.stats.wishart(dof,covsB[xa,:,:])
+            whA=scipy.stats.wishart(dof,A.get_covs()[xa,:,:])
+            whB=scipy.stats.wishart(dof,B.get_covs()[xa,:,:])
 
             covsA_sim=whA.rvs(100*errdist_perms)/(dof)
             covsB_sim=whB.rvs(100*errdist_perms)/(dof)
@@ -562,10 +559,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
 
                     # shared
                 if 'covs' in chType:
-                    corr_err_B[xb,xa,:,:]=B_sim.get_corrs()
-                    corr_err_A[xb,xa,:,:]=A_sim.get_corrs()
-                    covs_err_B[xb,xa,:,:]=B_sim.get_covs()
-                    covs_err_A[xb,xa,:,:]=A_sim.get_covs()
+                    corr_err_B[xb,xa,:,:]=B_sim.get_corrs(pcorrs=pcorrs)
+                    corr_err_A[xb,xa,:,:]=A_sim.get_corrs(pcorrs=pcorrs)
+                    covs_err_B[xb,xa,:,:]=B_sim.get_covs(pcorrs=pcorrs)
+                    covs_err_A[xb,xa,:,:]=A_sim.get_covs(pcorrs=pcorrs)
 
                 if 'common' in chType:
                     corr_min_common_err[xb,xa,:,:]= out['common']['min']
@@ -892,7 +889,7 @@ def corr2pcorr(cc):
     dd=diag(pinvA)
 
     tmp=-pinvA/sqrt(iis*iis.T)
-    tmp[where(eye(cc.shape[1]))]=dd
+    tmp[where(eye(cc.shape[1]))]=1
 
     return(tmp)
 
@@ -1072,11 +1069,11 @@ def plot_fb(ccs,low,high,vvs=None,cmap=cm.gray,colorbar=True):
 
     # ax.set_title('Change in correlation after adding/removing common signal')
 
-def plot_diffs(A,B,thr):
+def plot_diffs(A,B,thr,pcorrs=False):
 
-    ccstatsmat = fa((stats.ttest_rel(rtoz(A.get_corrs()),rtoz(B.get_corrs()))[0]))
+    ccstatsmat = fa((stats.ttest_rel(rtoz(A.get_corrs(pcorrs=pcorrs)),rtoz(B.get_corrs(pcorrs=pcorrs)))[0]))
 
-    lims=cf.corr_lims_mat(A,B)
+    lims=cf.corr_lims_mat(A,B, pcorrs=pcorrs)
     unshared=cf.corr_lims_unshared_mat(A,B)
     common=cf.corr_lims_common_mat(A,B)
 
