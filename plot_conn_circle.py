@@ -1,17 +1,17 @@
 import matplotlib
-from matplotlib.colors import LinearSegmentedColormap
 import scipy.stats as stats
 import max_corr_funcs as cf
 import mne
 import ml_funcs as ml
-from ml_funcs import flattenall as fa
 import seaborn as sns
 import numpy as np
 import scipy, os.path
 import matplotlib.pyplot as plt
-from matplotlib.pylab import find
 import itertools
 import colorline
+from matplotlib.pylab import find
+from ml_funcs import flattenall as fa
+from matplotlib.colors import LinearSegmentedColormap
 from colorline import colorline
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from operator import mul
@@ -20,7 +20,7 @@ from mne.viz import plot_connectivity_circle
 rtoz=ml.rtoz
 
 # plot connectivity matrices from an ICA dir
-def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5,minCorrDiff=0):
+def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5,minCorrDiff=0,pcorrs=False,negnorm=True):
      
     # basic settings
 
@@ -92,7 +92,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     if os.path.isfile('ROI_names.txt'):
         ROI_names=np.array(open('ROI_names.txt').read().splitlines())
     else:
-        ROI_names=np.array([ str(a) for a in np.arange(A_orig.get_covs().shape[-1]) ])
+        ROI_names=np.array([ str(a) for a in np.arange(A_orig.get_covs(pcorrs=pcorrs).shape[-1]) ])
 
     n_nodes=len(ROI_names)
 
@@ -107,11 +107,11 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
     # stats generation
  
-    ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs()),rtoz(B_orig.get_corrs()))
+    ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs(pcorrs=pcorrs)),rtoz(B_orig.get_corrs(pcorrs=pcorrs)))
     ccstatsmat=-fa(ccstats[0])
     ccstatsmatp=fa(ccstats[1])
 
-    inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.05)[0])
+    inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.2)[0])
 
     # inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmatp)),alpha=0.2)[0])
     # get std (remove stats due to rounding in simulations)
@@ -123,14 +123,14 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.2)[0])
 
     if A_orig.tcs == []: 
-        A=cf.FC(np.mean(A_orig.get_covs(),0),cov_flag=True, dof=A_orig.dof)
-        B=cf.FC(np.mean(B_orig.get_covs(),0),cov_flag=True , dof=B_orig.dof)
+        A=cf.FC(np.mean(A_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=A_orig.dof)
+        B=cf.FC(np.mean(B_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True , dof=B_orig.dof)
     else:
         A=cf.flatten_tcs(A_orig)
         B=cf.flatten_tcs(B_orig)
 
-    Acorrs=fa(A.get_corrs())
-    Bcorrs=fa(B.get_corrs())
+    Acorrs=fa(A.get_corrs(pcorrs=pcorrs))
+    Bcorrs=fa(B.get_corrs(pcorrs=pcorrs))
 
     if minCorrDiff != 0:
         inds_corrdiff = find(abs(Acorrs-Bcorrs)>minCorrDiff)
@@ -154,7 +154,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     dist_mat[np.diag_indices(n_nodes)] = 1e9
     node_width = np.min(np.abs(dist_mat))
     node_edgecolor='black'
-   
     #return(A,B)
     fig.clf()
 
@@ -162,7 +161,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     #for a in ndindex(varmat.shape[0:2]):
     #    varvarmat[a][ix_(np.arange(varmat.shape[-1]),np.arange(varmat.shape[-1]))]=tile(varmat[a],(rois,1))
     #sz=varmat.shape[-1]
-    lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,show_pctls=True)
+    lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,show_pctls=True,pcorrs=pcorrs)
     # incl_zeros = stats.norm.ppf(lims['covs']['incl_zeros'])
     incl_zeros = lims['covs']['incl_zeros']
 
@@ -190,7 +189,13 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     # produce the four plots 
     for plot in plots:
         cnt+=1
-        pp=plot_connectivity_circle(ccstatsmat.astype(float).flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
+        plotccstats= ccstatsmat.astype(float)
+
+        # flip color of negative corrs
+        if negnorm==True:
+           plotccstats= plotccstats*np.sign(Acorrs)
+        
+        pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
         ax=plt.gca()
         ax.set_title(titles[plot],color='black') 
@@ -264,10 +269,14 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
                 plt.fill_between(fbwx,fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
 
-            iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
-            iipos=ii[iipospos]
+            if negnorm == True:
+                iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
+                iinegpos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])<abs(Bcorrs[0,inds_plots[plot]])))
+            else:
+                iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
+                iinegpos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]<Bcorrs[0,inds_plots[plot]]))
 
-            iinegpos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]<Bcorrs[0,inds_plots[plot]]))
+            iipos=ii[iipospos]
             iineg=ii[iinegpos]
 
             xes = np.arange(len(ii))+(width - len(ii))/2.
