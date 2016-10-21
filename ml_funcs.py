@@ -1,14 +1,10 @@
 import sys,os, getopt,itertools
 import re,glob
 import nibabel
-import matplotlib.pyplot as plt
-from matplotlib.mlab import demean
-from scipy.stats import wilcoxon, ttest_rel
+from scipy.stats import wilcoxon
 from scipy.linalg import pinv
 from subprocess import call
 import numpy as np
-from numpy import *
-from pylab import find,is_numlike
 import pylab
 import pickle
 import sklearn
