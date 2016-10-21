@@ -17,6 +17,7 @@ from functools import reduce
 
 skcv=sklearn.cross_validation
 
+# load dual regression data into 
 def dr_loader(dir,conds=1,prefix='dr_stage1',subjs=[],subjorder=True):
 
     dr_files=sort(glob.glob(prefix+'_subject?????.txt'))    
