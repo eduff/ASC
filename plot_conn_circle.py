@@ -17,6 +17,7 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 from operator import mul
 from fractions import Fraction
 from mne.viz import plot_connectivity_circle
+
 rtoz=ml.rtoz
 
 # plot connectivity matrices from an ICA dir
@@ -110,6 +111,8 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs(pcorrs=pcorrs)),rtoz(B_orig.get_corrs(pcorrs=pcorrs)))
     ccstatsmat=-fa(ccstats[0])
     ccstatsmatp=fa(ccstats[1])
+
+    sdf
 
     inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.2)[0])
 
