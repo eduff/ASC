@@ -234,6 +234,29 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
     #    fig.savefig('Increases_both'+str(aaa)+'.pdf')
 
 
+def gen_lims_perms(errdist_perms=100,nreps=100,a=0.57741163399813,b=0.7948717948717948,c=0.69230769230769229,pctl=5):
+
+    A_real=cf.dr_loader('.',subj_ids=np.arange(15),dof='EstEff',prefix='test')
+    Af_real= cf.flatten_tcs(A_real)
+
+    tcs = Af_real.tcs[0,:3,:]
+    shp = tcs[:2,:].shape
+
+    corrmat1=np.array([[1,a,b],[a,1,c],[b,c,1]])
+    tmp=ml.gen_sim_data(tcs,covmat=corrmat1,nreps=nreps)
+    Af=cf.FC(tmp[:,:2,:])
+
+    tmp1=ml.gen_sim_data(tcs,covmat=corrmat1,nreps=nreps)
+    zz1=np.zeros((nreps,shp[0],shp[1]))
+    zz1[:,1,:]=tmp1[:,2,:]
+    Bf=cf.FC(tmp1[:,:2,:]+0.6*zz1)
+
+    lims1=cf.corr_lims_all(Af,Bf,errdist_perms=errdist_perms,show_pctls=True,pctl=pctl)
+
+    return(lims1)
+
+
+
 
 #
 #if __name__=="__main__":

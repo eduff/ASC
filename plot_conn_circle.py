@@ -1,26 +1,23 @@
-import matplotlib
 import scipy.stats as stats
-import max_corr_funcs as cf
 import mne
+from mne.viz import plot_connectivity_circle
+import max_corr_funcs as cf
 import ml_funcs as ml
-import seaborn as sns
+from ml_funcs import flattenall as fa
 import numpy as np
 import scipy, os.path
-import matplotlib.pyplot as plt
 import itertools
 import colorline
+import matplotlib
+import matplotlib.pyplot as plt
 from matplotlib.pylab import find
-from ml_funcs import flattenall as fa
 from matplotlib.colors import LinearSegmentedColormap
-from colorline import colorline
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from colorline import colorline
 from operator import mul
 from fractions import Fraction
-from mne.viz import plot_connectivity_circle
 
-rtoz=ml.rtoz
-
-# plot connectivity matrices from an ICA dir
+# calculate and plot connectivity matrices from an ICA dir
 def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5,minCorrDiff=0,pcorrs=False,negnorm=True):
      
     # basic settings
@@ -108,7 +105,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
     # stats generation
  
-    ccstats=stats.ttest_rel(rtoz(A_orig.get_corrs(pcorrs=pcorrs)),rtoz(B_orig.get_corrs(pcorrs=pcorrs)))
+    ccstats=stats.ttest_rel(ml.rtoz(A_orig.get_corrs(pcorrs=pcorrs)),ml.rtoz(B_orig.get_corrs(pcorrs=pcorrs)))
     ccstatsmat=-fa(ccstats[0])
     ccstatsmatp=fa(ccstats[1])
 
@@ -313,14 +310,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     return(lims,A,B,inds_plots)
 
 
-def plot_connectivity_circle_DR(ccstatsmat, ROIs, inds, fig, ):
-
-    vmin = -3
-    vmax = 3
-
-    inds=np.intersect1d(inds_orig,find(changes==b))
-   
-
 def plot_connectivity_circle_thr(con, node_names, thr=-1, indices=None, n_lines=None,
                              node_angles=None, node_width=None,
                              node_colors=None, facecolor='black',
@@ -352,28 +341,4 @@ def plot_connectivity_circle_thr(con, node_names, thr=-1, indices=None, n_lines=
                              fontsize_colorbar=fontsize_colorbar, padding=padding,
                              fig=fig, subplot=subplot, interactive=interactive) 
     
-
-def gen_lims_perms(errdist_perms=100,nreps=100,a=0.57741163399813,b=0.7948717948717948,c=0.69230769230769229,pctl=5):
-
-    A_real=cf.dr_loader('.',subj_ids=np.arange(15),dof='EstEff',prefix='test')
-    Af_real= cf.flatten_tcs(A_real)
-
-    tcs = Af_real.tcs[0,:3,:]
-    shp = tcs[:2,:].shape
-
-    corrmat1=np.array([[1,a,b],[a,1,c],[b,c,1]])
-    tmp=ml.gen_sim_data(tcs,covmat=corrmat1,nreps=nreps)
-    Af=cf.FC(tmp[:,:2,:])
-
-    tmp1=ml.gen_sim_data(tcs,covmat=corrmat1,nreps=nreps)
-    zz1=np.zeros((nreps,shp[0],shp[1]))
-    zz1[:,1,:]=tmp1[:,2,:]
-    Bf=cf.FC(tmp1[:,:2,:]+0.6*zz1)
-
-    lims1=cf.corr_lims_all(Af,Bf,errdist_perms=errdist_perms,show_pctls=True,pctl=pctl)
-
-    return(lims1)
-
-
-
 
