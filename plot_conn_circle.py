@@ -7,7 +7,6 @@ from ml_funcs import flattenall as fa
 import numpy as np
 import scipy, os.path
 import itertools
-import colorline
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.pylab import find
