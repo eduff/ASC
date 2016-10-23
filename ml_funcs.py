@@ -2,6 +2,7 @@ import sys,os, getopt,itertools
 import re,glob
 from scipy.linalg import pinv
 import numpy as np
+from pylab import find, is_numlike
 import pylab
 import pickle
 import sklearn
