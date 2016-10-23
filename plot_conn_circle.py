@@ -109,8 +109,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
     ccstatsmat=-fa(ccstats[0])
     ccstatsmatp=fa(ccstats[1])
 
-    sdf
-
     inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.2)[0])
 
     # inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmatp)),alpha=0.2)[0])
