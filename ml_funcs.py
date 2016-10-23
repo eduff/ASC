@@ -1,9 +1,6 @@
 import sys,os, getopt,itertools
 import re,glob
-import nibabel
-from scipy.stats import wilcoxon
 from scipy.linalg import pinv
-from subprocess import call
 import numpy as np
 import pylab
 import pickle
