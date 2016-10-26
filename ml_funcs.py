@@ -8,6 +8,7 @@ import pickle
 import sklearn
 from sklearn import covariance, svm, grid_search
 from functools import reduce
+from numpy import *
 
 skcv=sklearn.cross_validation
 

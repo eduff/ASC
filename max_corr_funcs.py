@@ -1,7 +1,7 @@
 from numpy import *
 import os
 import numpy as np
-from ml_funcs import flattenall as fa
+import ml_funcs as ml
 import numpy.linalg as la
 import matplotlib.pylab as pl
 import matplotlib.cm as cm
@@ -143,8 +143,9 @@ def c_neg_maxmin(std_xa,std_xb,std_ya,rho_a):
 
            return(abs_sort(array([-(std_xa*rho_a+tmp)/std_ya,-(std_xa*rho_a-tmp)/std_ya])))
 
+# general connectivity matrix class
 class FC:
-    def __init__(self,tcs,cov_flag=False,dof=[]):
+    def __init__(self,tcs,cov_flag=False,dof=[],ROI_info=[]):
     
         if cov_flag==True:
             self.tcs=[]
@@ -178,8 +179,9 @@ class FC:
             else:
                 self.dof=dof
 
-            # corrs=zeros((tcs.shape[0],tcs.shape[1],tcs.shape[1]))
             covs = get_covs(tcs)
+
+        self.ROI_info = ROI_info
 
         self.covs = covs
 
@@ -233,7 +235,6 @@ class FC:
         
         return(pcorrs*multiplier)
 
-
 class FC_con:
     def __init__(self,A,B):     
         self.A=A
@@ -253,7 +254,7 @@ class FC_con:
 
     def get_lims(self,errdist=False):
         if ~( 'lims' in self.__dict__):
-            self.lims=corr_lims_mat(self.A,self.B,errdist=errdist)
+            self.lims=corr_lims_all(self.A,self.B,errdist=errdist)
 
         return(self.lims)
 
@@ -261,7 +262,28 @@ class FC_con:
         if ~( 'unshared' in self.__dict__):
             self.unshared=corr_lims_unshared_mat(self.A,self.B,errdist=errdist)
 
+    def get_corr_stats(self,pcorrs=False): 
+        if pcorrs:
+            out = self.get_pcorr_stats(self)
         
+        if ~( 'corr_stats' in self.__dict__):
+            self.corr_stats = scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=False)),ml.rtoz(self.B.get_corrs(pcorrs=False)))
+            out = self.corr_stats
+        return out
+
+    def get_pcorr_stats(self): 
+        if ~( 'pcorr_stats' in self.__dict__):
+               self.pcorr_stats=scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=pcorrs)),ml.rtoz(self.B.get_corrs(pcorrs=pcorrs)))
+
+        return self.pcorr_stats
+
+    
+    def get_std_stats(self,pcorrs=False): 
+        if ~( 'std_stats' in self.__dict__):
+            self.std_stats = scipy.stats.ttest_rel(self.A.get_stds(pcorrs=pcorrs),self.B.get_stds(pcorrs=pcorrs))[0]
+
+        return self.std_stats
+
 
 
 # calculate noise related change 
@@ -336,27 +358,8 @@ def corr_lims_unshared_mat(A,B,pcorrs=False,errdist=False,errdist_perms=1000,dof
     else:
         return(unshared)
 
-def corr_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[],pctl=5,chType='All',sim_sampling=40,show_pctls=True):
-
-    out=[]
-    for a in range(len(ccs)):
-
-        ooA=ones((2,2))
-        ooA[[0,1],[1,0]]=ccs[a]
-        ooA[[0,1],[0,1]]=1
-        tmpA=FC(ooA,cov_flag=True,dof=600)
-
-        ooB=ones((2,2))
-        ooB[[0,1],[1,0]]=ccs[a]
-        ooB[0,0]=vvs[a,0]
-        ooB[1,1]=vvs[a,1]
-        tmpB=FC(ooB,cov_flag=True,dof=600)
-
-        out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,chType=chType,sim_sampling=sim_sampling,show_pctls=show_pctls))
-    
-    return(out)
-            
 def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',sim_sampling=40,show_pctls=False):
+
     if dof==[]:
         dof=A.dof
 
@@ -553,6 +556,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
                 A_sim=FC(whA[els[xb]].rvs()/dof,cov_flag=True,dof=A.dof)
                 B_sim=FC(whB[els[xb]].rvs()/dof,cov_flag=True,dof=B.dof)
                 out = corr_lims_all(A_sim,B_sim,errdist_perms=0,pcorrs=pcorrs,dof=dof,chType=chType,sim_sampling=sim_sampling)
+
                 # unshared
                 if 'unshared' in chType:
                     unshared_lims_err[xb,xa,:,:] = out['unshared']['min']
@@ -591,7 +595,6 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
             lims_struct['covs']['incl_zeros'] = percentileofscore(raw,0,0)
             #  lims_struct['correlation']['pctls']=(Bcorrs> pctl_min) != (Bcorrs> pctl_max)
             
-
         if 'unshared' in chType:
             unshared_lims_err[abs(unshared_lims_err)>1]=sign(unshared_lims_err[abs(unshared_lims_err)>1]) 
             #lims_struct['unshared']['err']=unshared_lims_err
@@ -1071,7 +1074,7 @@ def plot_fb(ccs,low,high,vvs=None,cmap=cm.gray,colorbar=True):
 
 def plot_diffs(A,B,thr,pcorrs=False):
 
-    ccstatsmat = fa((stats.ttest_rel(rtoz(A.get_corrs(pcorrs=pcorrs)),rtoz(B.get_corrs(pcorrs=pcorrs)))[0]))
+    ccstatsmat = ml.fa((stats.ttest_rel(ml.rtoz(A.get_corrs(pcorrs=pcorrs)),ml.rtoz(B.get_corrs(pcorrs=pcorrs)))[0]))
 
     lims=cf.corr_lims_mat(A,B, pcorrs=pcorrs)
     unshared=cf.corr_lims_unshared_mat(A,B)
@@ -1082,7 +1085,7 @@ def plot_diffs(A,B,thr,pcorrs=False):
 def flatten_tcs(A,dof='EstEff'):
     tcs_dm=pl.demean(A.tcs,2)
     shp=tcs_dm.shape
-    out=FC(reshape(tcs_dm.swapaxes(0,1),[shp[1],-1]))
+    out=FC(reshape(tcs_dm.swapaxes(0,1),[shp[1],-1]),ROI_info=A.ROI_info)
     # subtract dofs from demeaning 
     out.dof=out.dof-shp[0]
     tcs = out.tcs
@@ -1105,7 +1108,7 @@ def flatten_tcs(A,dof='EstEff'):
 
     return(out)
 
-def dr_loader(dir,prefix='dr_stage1',subj_ids=[],ROIs=[],subjorder=True,dof='EstEff',nosubj=False):
+def dr_loader(dir,prefix='dr_stage1',subj_ids=[],ROI_order=[],subjorder=True,dof='EstEff',nosubj=False,read_roi_info=True):
     
     if nosubj:
         dr_files=sort(glob.glob(prefix+'*.txt')) 
@@ -1120,37 +1123,81 @@ def dr_loader(dir,prefix='dr_stage1',subj_ids=[],ROIs=[],subjorder=True,dof='Est
     subjs=len(dr_files)
     maskflag=False
 
-    tmp=atleast_2d(loadtxt(dr_files[0]).T)
-    if os.path.isfile(dir+'/goodnodes.txt'):
-        goodnodes=loadtxt(dir+'/goodnodes.txt').astype(int)
-    else:
-        goodnodes=arange(tmp.shape[-2])
+    data=atleast_2d(loadtxt(dr_files[0]).T)
 
-    tmp=tmp[goodnodes,:]
-    shp=tmp.shape
-    datamat=zeros((subjs,shp[0],shp[1]))
-    mask=zeros((subjs,shp[0],shp[1]))
-    cnt=0
-    for a in arange(subjs):
-            tmpdata=atleast_2d(loadtxt(dr_files[cnt]).T)[goodnodes,:]
+    ROI_info={}
+
+    if read_roi_info:
+
+        if ROI_order == []:
+            if os.path.isfile('ROI_order.txt'):
+                ROI_order=np.loadtxt('ROI_order.txt').astype(int)-1
+        ROI_info['ROI_order']=ROI_order
+     
+        if os.path.isfile('ROI_RSNs.txt'):
+            ROI_info['ROI_RSNs']=(np.loadtxt('ROI_RSNs.txt').astype(int))
+        else: 
+            ROI_info['ROI_RSNs'] = []
+        
+        if os.path.isfile('goodnodes.txt'):
+            ROI_info['goodnodes']=np.loadtxt('goodnodes.txt').astype(int)
+            ROI_info['ROI_RSNs']=ROI_info['ROI_RSNs'][np.in1d(ROI_order,goodnodes)]
+            ROI_info['ROI_order']=ROI_info['ROI_order'][np.in1d(ROI_order,goodnodes)]
+        elif ROI_info['ROI_RSNs'] != []:
+            ROI_info['goodnodes]']=None
+            ROI_info['ROI_RSNs']=ROI_info['ROI_RSNs'][ROI_info['ROI_order']]
+
+        if ROI_info['ROI_order'] == []:
+            ROI_info['ROI_order'] = arange(len(ROI_info['ROI_RSNs']))
+
+        if os.path.isfile('ROI_RSN_include.txt'):
+            ROI_info['ROI_RSN_include']=(np.loadtxt('ROI_RSN_include.txt').astype(int))
+
+
+            ROI_info['ROI_order'] = ROI_info['ROI_order'][np.in1d(ROI_info['ROI_RSNs'],ROI_info['ROI_RSN_include'])]
+            ROI_info['ROI_RSNs'] = ROI_info['ROI_RSNs'][np.in1d(ROI_info['ROI_RSNs'],ROI_info['ROI_RSN_include'])]
+
+        if os.path.isfile('ROI_names.txt'):
+            ROI_info['ROI_names']=np.array(open('ROI_names.txt').read().splitlines())
+        else:
+            ROI_info['ROI_names']=np.array([ str(a) for a in np.arange(A_orig.get_covs(pcorrs=pcorrs).shape[-1]) ])
+
+        # n_nodes=len(ROI_info[ROI_names)
+
+        ROI_info['ROI_names']=ROI_info['ROI_names'][ROI_info['ROI_order']]
+
+
+    for cnt in arange(subjs):
+
+            tmpdata=atleast_2d(loadtxt(dr_files[cnt]).T)
+            if cnt==0:
+                shp=tmpdata.shape
+                if ROI_order is []:
+                   ROI_order = np.arange(shp[1])
+                   if not ROI_info == {}:
+                       ROI_info['ROI_order'] = ROI_order
+
+                datamat=zeros((subjs,shp[0],shp[1]))
+                mask=zeros((subjs,shp[0],shp[1]))
+
             if tmpdata.shape[1] < shp[1]:
-                mask[a,:,tmpdata.shape[1]:]=1
+                mask[cnt,:,tmpdata.shape[1]:]=1
                 maskflag=True
-            datamat[a,:,:tmpdata.shape[1]]=tmpdata
-            cnt+=1
+
+            datamat[cnt,:,:shp[1]]=tmpdata
+
     if maskflag:
         datamat=ma.masked_array(datamat,mask)
     
-    if not (ROIs==[]):
-        datamat=datamat[:,ROIs,:]
+    if not ROI_order is []:
+        datamat=datamat[:,ROI_order,:]
 
     if ( not subjorder ):
         datamat=swapaxes(datamat,0,1)
 
-    A=FC(datamat,dof=dof)
+    A=FC(datamat,dof=dof,ROI_info=ROI_info)
 
     return A
-
 
 def dr_saver(A,dir,prefix='dr_stage1',goodnodes=[],aug=0):
    tcs =  A.tcs
@@ -1318,5 +1365,22 @@ def is_numeric(x):
 
         return(False)
 
+def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[],pctl=5,chType='All',sim_sampling=40,show_pctls=True):
 
+    out=[]
+    for a in range(len(ccs)):
 
+        ooA=ones((2,2))
+        ooA[[0,1],[1,0]]=ccs[a]
+        ooA[[0,1],[0,1]]=1
+        tmpA=FC(ooA,cov_flag=True,dof=600)
+
+        ooB=ones((2,2))
+        ooB[[0,1],[1,0]]=ccs[a]
+        ooB[0,0]=vvs[a,0]
+        ooB[1,1]=vvs[a,1]
+        tmpB=FC(ooB,cov_flag=True,dof=600)
+
+        out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,chType=chType,sim_sampling=sim_sampling,show_pctls=show_pctls))
+    
+    return(out)

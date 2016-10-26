@@ -15,16 +15,52 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 from colorline import colorline
 from operator import mul
 from fractions import Fraction
+import seaborn as sns
 
 # calculate and plot connectivity matrices from an ICA dir
-def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1',exclude=True,filt=0,data_pre='',savefig='',pctl=5,minCorrDiff=0,pcorrs=False,negnorm=True):
-     
-    # basic settings
+def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True):
 
-    # colours
-    plotcolors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
+    A = cf.dr_loader(dir,subj_ids=inds1,prefix=prefix)
+    B = cf.dr_loader(dir,subj_ids=inds2,prefix=prefix)
 
-    la=np.logical_and
+    AB_con = cf.FC_con(A,B)
+
+    plot_conn = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True)
+
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=''):
+    
+    # gen basic stats 
+
+    inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
+    ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
+    ccstatsmatp=fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1])
+
+    ROI_info = AB_con.A.ROI_info
+
+    vvstatsmat=-AB_con.get_std_stats()
+    vv_norm=vvstatsmat/6
+    vv_norm[np.isnan(vv_norm)]=0
+    
+    n_nodes = AB_con.A.get_covs().shape[1]
+
+    if AB_con.A.tcs == []: 
+        A=cf.FC(np.mean(A_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=AB_con.A.dof,ROI_info=AB_con.A.ROI_info)
+        B=cf.FC(np.mean(B_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=AB_con.B.dof,ROI_info=AB_con.B.ROI_info)
+    else:
+        A=cf.flatten_tcs(AB_con.A)
+        B=cf.flatten_tcs(AB_con.B)
+
+    Acorrs=fa(A.get_corrs(pcorrs=pcorrs))
+    Bcorrs=fa(B.get_corrs(pcorrs=pcorrs))
+
+    if min_corr_diff != 0:
+        inds_corr_diff = find(abs(Acorrs-Bcorrs)>min_corr_diff)
+        inds_cc = np.intersect1d(inds_corr_diff,inds_cc)
+
+    # set plot colours
+
+    fig.clf()
+    plot_colors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
 
     cdict1 = {'red':   ((0.0, 0.0, 0.0),
                        (0.75, 0.5, 0.5),
@@ -46,179 +82,97 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
 
     blue_red1 = LinearSegmentedColormap('BlueRed1', cdict1)
     plt.register_cmap(cmap=blue_red1)
-    cmap2=matplotlib.colors.ListedColormap(name='Test',colors=plotcolors)
+    cmap2=matplotlib.colors.ListedColormap(name='Test',colors=plot_colors)
     plt.register_cmap(cmap=cmap2)
+
+    fontsize=9 
 
     current_palette = sns.color_palette()
     sb_cols=current_palette + current_palette + current_palette 
-    group_cols=[]
 
-    # loading data
+    # variance stats
 
-    if os.path.isfile(data_pre+'ROI_order.txt'):
-        ROI_order=np.loadtxt(data_pre+'ROI_order.txt').astype(int)-1
-    else:
-        ROI_order = []
-
-    if os.path.isfile(data_pre+'ROI_RSNs.txt'):
-        ROI_RSNs=(np.loadtxt(data_pre+'ROI_RSNs.txt').astype(int))
-    else: 
-        ROI_RSNs = []
-
-    if os.path.isfile('goodnodes.txt'):
-        goodnodes=np.loadtxt('goodnodes.txt').astype(int)
-        ROI_RSNs=ROI_RSNs[np.in1d(ROI_order,goodnodes)]
-        ROI_order=ROI_order[np.in1d(ROI_order,goodnodes)]
-    elif ROI_RSNs != []:
-        ROI_RSNs=ROI_RSNs[ROI_order]
-
-    if os.path.isfile('ROI_RSN_include.txt'):
-        ROI_RSN_include=(np.loadtxt('ROI_RSN_include.txt').astype(int))
-        if ROI_order == []:
-            ROI_order = arange(len(ROI_RSNs))
-        ROI_order = ROI_order[np.in1d(ROI_RSNs,ROI_RSN_include)]
-        ROI_RSNs = ROI_RSNs[np.in1d(ROI_RSNs,ROI_RSN_include)]
-
-    if plt.is_numlike(inds1):
-        A_orig=cf.dr_loader('.',subj_ids=inds1,ROIs=ROI_order,prefix=prefix)
-        B_orig=cf.dr_loader('.',subj_ids=inds2,ROIs=ROI_order,prefix=prefix)
-    else:
-        A_orig=inds1
-        B_orig=inds2
-
-    if os.path.isfile('ROI_names.txt'):
-        ROI_names=np.array(open('ROI_names.txt').read().splitlines())
-    else:
-        ROI_names=np.array([ str(a) for a in np.arange(A_orig.get_covs(pcorrs=pcorrs).shape[-1]) ])
-
-    n_nodes=len(ROI_names)
-
-    if ROI_order == []:
-        ROI_order = np.arange(n_nodes)
-
-    if ROI_RSNs == []:
-        ROI_RSNs = np.ones(n_nodes).astype(int)
-
-    ROI_names=ROI_names[ROI_order]
-    n_nodes=len(ROI_names)
-
-    # stats generation
- 
-    ccstats=stats.ttest_rel(ml.rtoz(A_orig.get_corrs(pcorrs=pcorrs)),ml.rtoz(B_orig.get_corrs(pcorrs=pcorrs)))
-    ccstatsmat=-fa(ccstats[0])
-    ccstatsmatp=fa(ccstats[1])
-
-    inds_cc=find(mne.stats.fdr_correction(ccstatsmatp,alpha=0.2)[0])
-
-    # inds_cc=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(ccstatsmatp)),alpha=0.2)[0])
-    # get std (remove stats due to rounding in simulations)
-    A_orig_stds = np.round(A_orig.get_stds(),6)
-    B_orig_stds = np.round(B_orig.get_stds(),6)
-    
-    vvstatsmat=-(stats.ttest_rel(A_orig_stds,B_orig_stds)[0])
-    vvpctg = (B_orig_stds - A_orig_stds)/(A_orig_stds)
-    inds_vv=find(mne.stats.fdr_correction(scipy.stats.norm.sf(abs(vvstatsmat)),alpha=0.2)[0])
-
-    if A_orig.tcs == []: 
-        A=cf.FC(np.mean(A_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=A_orig.dof)
-        B=cf.FC(np.mean(B_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True , dof=B_orig.dof)
-    else:
-        A=cf.flatten_tcs(A_orig)
-        B=cf.flatten_tcs(B_orig)
-
-    Acorrs=fa(A.get_corrs(pcorrs=pcorrs))
-    Bcorrs=fa(B.get_corrs(pcorrs=pcorrs))
-
-    if minCorrDiff != 0:
-        inds_corrdiff = find(abs(Acorrs-Bcorrs)>minCorrDiff)
-        inds_cc = np.intersect1d(inds_corrdiff,inds_cc)
-
-
-    vv_norm=vvstatsmat/6
-    #vv_norm= vvpctg * 254
-    vv_norm[np.isnan(vv_norm)]=0
     vcols=[]
     for a in np.arange(n_nodes):
         vcols.append(blue_red1((vv_norm[a]+1)/2))
-    #vvs_s=squeeze(vvs_s)
-    #vvst_s=squeeze(vvst_s)
 
-    indices=np.triu_indices(n_nodes,1)
+    vmax=3
+    vmin=-3
 
+    # node info
     node_angles = np.linspace(0, 2 * np.pi, n_nodes, endpoint=False)
     height=np.ones(n_nodes)*4
     dist_mat = node_angles[None, :] - node_angles[:, None]
     dist_mat[np.diag_indices(n_nodes)] = 1e9
     node_width = np.min(np.abs(dist_mat))
     node_edgecolor='black'
-    #return(A,B)
-    fig.clf()
+    group_cols=[]
 
-    # calculate variance
-    #for a in ndindex(varmat.shape[0:2]):
-    #    varvarmat[a][ix_(np.arange(varmat.shape[-1]),np.arange(varmat.shape[-1]))]=tile(varmat[a],(rois,1))
-    #sz=varmat.shape[-1]
+    for a in ROI_info['ROI_RSNs']:     
+        val=1-0.5*a/max(ROI_info['ROI_RSNs'])
+        group_cols.append((val,val,val))
+
+
     lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,show_pctls=True,pcorrs=pcorrs)
-    # incl_zeros = stats.norm.ppf(lims['covs']['incl_zeros'])
-    incl_zeros = lims['covs']['incl_zeros']
 
-    # ccstatsmat = lims['covs'][ 
-
+    # incl_zeros = lims['covs']['incl_zeros']
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
+
     plots = ['unshared','common','combined','other']
     titles= {'unshared':"Addition of uncorrelated signal", 'common':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explained \n by simple signal additions"}
+
+    indices=np.triu_indices(n_nodes,1)
     notin=inds_cc
     inds_plots={}
-    vmax=3
-    vmin=-3
+
     for plot in plots[:3]:
         inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
         notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+
     inds_plots['other'] = notin
 
-    if exclude:
+    if exclude_conns:
         inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['unshared'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
-    cnt=-1
-    fontsize=9 
+
 
     # produce the four plots 
+    cnt=-1
+
+    plotccstats= ccstatsmat.astype(float)
+
     for plot in plots:
+
         cnt+=1
-        plotccstats= ccstatsmat.astype(float)
 
         # flip color of negative corrs
-        if negnorm==True:
+        if neg_norm==True:
            plotccstats= plotccstats*np.sign(Acorrs)
         
-        pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_names[0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
+        pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
         ax=plt.gca()
         ax.set_title(titles[plot],color='black') 
         
+
         bars = pp[1].bar(node_angles, height*2.2, width=node_width, bottom=10.4, \
                         edgecolor='0.9', lw=2, facecolor='.9', \
                         align='center',linewidth=1)
-       
-        #for aa in np.arange(len(sb_cols)):
-        #    sb_cols[aa]=(min(sb_cols[0][0]*(1.9),1),min(sb_cols[0][1]*(1.9),1),min(sb_cols[0][2]*(1.9),1))
 
-        for a in ROI_RSNs:     
-            val=1-0.5*a/max(ROI_RSNs)
-            group_cols.append((val,val,val))
 
+
+        #  color node faces
         for bar, color in zip(bars, group_cols):
             bar.set_facecolor(color)
             bar.set_edgecolor(color)
 
-        #ax.text(.8,18,'DMN',size=10,color='black')
-        #ax.text(2.8,21,'Motor',size=10,color='black')
-        #ax.text(5,18,'Visual',size=10,color='black')
-   
         sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
 
-        if plot=='other':
+        
+        # plot corr info
+
+        if plot=='other': 
             plotrange='combined'
         else:
             plotrange=plot
@@ -227,7 +181,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
         sort_array['f1']=fa(lims[plotrange]['max_pctls'])[0,inds_plots[plot]]
         ii=np.argsort(sort_array,order=['f0','f1'])
 
- 
         if len(ii)>0: 
             width=np.max((20,len(ii)+10))
             ii_ext=np.r_[ii[0],ii,ii[-1]]
@@ -236,19 +189,6 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
             fbwx[-1]=fbwx[-1]-0.5  
 
             ax=plt.subplot(245+cnt,axisbg='white')
-
-            #if a==0:
-            #    ii2=ii[in1d(ii,find(ccmat1>ccmat2))]
-            #elif a==1:
-            #    ii2=ii[in1d(ii,find(ccmat1<ccmat2))]
-            #else:
-            #    ii2=ii[in1d(ii,setdiff1d(arange(len(changes)),inds_orig))]
-
-            # pad out inds_plots
-            # pad out inds_plots
-            #inds_plots_pad = {}
-            #for tt in inds_plots.keys():
-            #    np.r_[inds_plots[tt][0],inds_plots['other'],inds_plots[tt][-1]]
 
             ax.set_ylim([-1.,1])
             ax.set_yticks([-1,0,1])
@@ -266,7 +206,7 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
                 plt.fill_between(fbwx,fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
 
-            if negnorm == True:
+            if neg_norm == True:
                 iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
                 iinegpos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])<abs(Bcorrs[0,inds_plots[plot]])))
             else:
@@ -297,45 +237,11 @@ def plot_conn(dir,inds1,inds2,fig,flatten=True,errdist_perms=0,prefix='dr_stage1
             z=np.zeros(xes.shape[0]+1,)
 
             # plot network membership
-            colorline(fbwx[:-1], z+1.05,ROI_RSNs[indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
-            colorline(fbwx[:-1], z+1.1,ROI_RSNs[indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
+            colorline(fbwx[:-1], z+1.05,ROI_info['ROI_RSNs'][indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
+            colorline(fbwx[:-1], z+1.1,ROI_info['ROI_RSNs'][indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             plt.show()
 
     if savefig!='':
         fig.savefig(savefig)
 
     return(lims,A,B,inds_plots)
-
-
-def plot_connectivity_circle_thr(con, node_names, thr=-1, indices=None, n_lines=None,
-                             node_angles=None, node_width=None,
-                             node_colors=None, facecolor='black',
-                             textcolor='white', node_edgecolor='black',
-                             linewidth=1.5, colormap='hot', vmin=None,
-                             vmax=None, colorbar=True, title=None,
-                             colorbar_size=0.2, colorbar_pos=(-0.3, 0.1),
-                             fontsize_title=12, fontsize_names=8,
-                             fontsize_colorbar=8, padding=6.,
-                             fig=None, subplot=111, interactive=True):
-
-    if thr>0:
-        triu=np.triu_indices(10,k=1)
-        conu=con[triu]
-        inds1=np.tile(np.arange(10),(10,1))
-        inds2=inds1.T
-
-        inds1_t = inds1[triu]
-        inds2_t = inds2[triu]
-
-        plot_connectivity_circle(conu[conu>thr], node_names, indices=(inds1_t[conu>thr],inds2_t[conu>thr]), n_lines=n_lines,
-                             node_angles=node_angles, node_width=node_width,
-                             node_colors=node_colors, facecolor=facecolor,
-                             textcolor=textcolor, node_edgecolor=node_edgecolor,
-                             linewidth=linewidth, colormap=colormap, vmin=vmin,
-                             vmax=vmax, colorbar=colorbar, title=title,
-                             colorbar_size=colorbar_size, colorbar_pos=colorbar_pos,
-                             fontsize_title=fontsize_title, fontsize_names=fontsize_names,
-                             fontsize_colorbar=fontsize_colorbar, padding=padding,
-                             fig=fig, subplot=subplot, interactive=interactive) 
-    
-
