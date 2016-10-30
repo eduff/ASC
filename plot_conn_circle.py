@@ -25,7 +25,9 @@ def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_con
 
     AB_con = cf.FC_con(A,B)
 
-    plot_conn = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True)
+    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True)
+
+    return(AB_con)
 
 def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=''):
     
@@ -43,15 +45,10 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     
     n_nodes = AB_con.A.get_covs().shape[1]
 
-    if AB_con.A.tcs == []: 
-        A=cf.FC(np.mean(A_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=AB_con.A.dof,ROI_info=AB_con.A.ROI_info)
-        B=cf.FC(np.mean(B_orig.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=AB_con.B.dof,ROI_info=AB_con.B.ROI_info)
-    else:
-        A=cf.flatten_tcs(AB_con.A)
-        B=cf.flatten_tcs(AB_con.B)
+    lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=False,pctl=pctl)
 
-    Acorrs=fa(A.get_corrs(pcorrs=pcorrs))
-    Bcorrs=fa(B.get_corrs(pcorrs=pcorrs))
+    Acorrs=fa(AB_con.A.get_corrs(pcorrs=pcorrs))
+    Bcorrs=fa(AB_con.B.get_corrs(pcorrs=pcorrs))
 
     if min_corr_diff != 0:
         inds_corr_diff = find(abs(Acorrs-Bcorrs)>min_corr_diff)
@@ -112,9 +109,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         val=1-0.5*a/max(ROI_info['ROI_RSNs'])
         group_cols.append((val,val,val))
 
-
-    lims=cf.corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,show_pctls=True,pcorrs=pcorrs)
-
     # incl_zeros = lims['covs']['incl_zeros']
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
 
@@ -136,7 +130,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
 
-
     # produce the four plots 
     cnt=-1
 
@@ -152,23 +145,20 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         
         pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
+        # titles
         ax=plt.gca()
         ax.set_title(titles[plot],color='black') 
         
-
+        #  color node faces
         bars = pp[1].bar(node_angles, height*2.2, width=node_width, bottom=10.4, \
                         edgecolor='0.9', lw=2, facecolor='.9', \
                         align='center',linewidth=1)
 
-
-
-        #  color node faces
         for bar, color in zip(bars, group_cols):
             bar.set_facecolor(color)
             bar.set_edgecolor(color)
 
         sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
-
         
         # plot corr info
 
@@ -244,4 +234,4 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     if savefig!='':
         fig.savefig(savefig)
 
-    return(lims,A,B,inds_plots)
+    return(AB_con,inds_plots)

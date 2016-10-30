@@ -8,10 +8,12 @@ import matplotlib.cm as cm
 import glob,os, numbers
 import nibabel as nb
 import scipy.stats
+import scipy.sparse
 import spectrum
 from itertools import combinations, chain
 from scipy.misc import comb
 from scipy.interpolate import interp1d
+from scipy.sparse import coo_matrix
 
 from scipy.signal import welch
 from multiprocessing import Process, Queue, current_process, freeze_support
@@ -149,6 +151,162 @@ class FC:
     
         if cov_flag==True:
             self.tcs=[]
+            #if tcs.ndim==2:
+            #    tcs=(atleast_3d(tcs).transpose(2,0,1))
+            covs=tcs
+            if dof == []:
+                raise ValueError("Need to specify dof if providing cov.")
+            else:
+                self.dof=dof
+  
+        else:
+            if tcs.ndim==2:
+                tcs=(atleast_3d(tcs).transpose(2,0,1))
+            
+            self.tcs = tcs
+            if dof == []:
+                self.dof=tcs.shape[-1]-1
+            elif dof == 'EstEff':
+                AR=zeros((tcs.shape[0],tcs.shape[1],15))
+                ps=zeros((tcs.shape[0],tcs.shape[1],15))
+                for subj in arange(tcs.shape[0]): 
+                    for ROI in arange(tcs.shape[1]):
+                        AR[subj,ROI,:]=spectrum.aryule(pl.demean(tcs[subj,ROI,:]),15)[0]
+                        ps[subj,ROI,:]=spectrum.correlation.CORRELATION(pl.demean(tcs[subj,ROI,:]),maxlags=14,norm='coeff')
+                ps = np.mean(mean(ps,0),0)
+                AR2 = np.mean(mean(AR,0),0)
+                dof_nom=tcs.shape[-1]-1
+                self.dof = int(dof_nom / (1-np.dot(ps[:15].T,AR2))/(1 - np.dot(ones(len(AR2)).T,AR2)))
+
+            else:
+                self.dof=dof
+
+            covs = get_covs(tcs)
+
+        self.ROI_info = ROI_info
+
+        self.covs = covs
+
+    def get_stds(self,pcorrs=False):
+
+        if not( 'stds' in self.__dict__):
+            sz = self.get_covs(pcorrs=pcorrs).shape
+            self.stds=diagonal(self.get_covs(pcorrs=pcorrs),axis1=len(sz)-2,axis2=len(sz)-1)**(0.5) 
+        return(self.stds)
+
+    def get_stds_m(self,pcorrs=False):
+
+        stds_m = self.get_stds(pcorrs=pcorrs)
+        return(tile(stds_m,(1,self.covs.shape[1])).reshape(stds_m.shape[0],stds_m.shape[1],stds_m.shape[1]))
+
+    def get_stds_m_t(self,pcorrs=False):
+
+        return transpose(self.get_stds_m(pcorrs=pcorrs),(0,2,1))
+
+    def get_corrs(self,pcorrs=False):
+
+        if pcorrs:
+            return(self.get_pcorrs())
+        else:
+            if not( 'corrs' in self.__dict__):
+                self.corrs = self.get_covs()/(self.get_stds_m()*self.get_stds_m_t())
+            return(self.corrs)
+    
+    def get_pcorrs(self):
+
+        if not( 'pcorrs' in self.__dict__):
+            if not( 'corrs' in self.__dict__):
+                self.corrs = (self.get_covs())/(self.get_stds_m()*self.get_stds_m_t())
+            
+            self.pcorrs=zeros(self.corrs.shape)
+            for a in range(len(self.pcorrs)):
+                self.pcorrs[a,:,:]=corr2pcorr(self.corrs[a,:,:])
+               
+        return self.pcorrs
+    
+    def get_covs(self,pcorrs=False):
+        if pcorrs:
+            return self._get_pcovs()
+        else:
+            return self.covs
+
+    def _get_pcovs(self):
+        if not( 'pcorrs' in self.__dict__):
+            pcorrs=self.get_pcorrs()
+
+        multiplier = (self.get_stds_m()*transpose(self.get_stds_m(),(0,2,1)))
+        
+        return(pcorrs*multiplier)
+
+
+class FC_con:
+    def __init__(self,A,B):     
+        self.A=A
+        self.B=B
+
+    def get_common(self,errdist=False):
+        if not( 'common' in self.__dict__):
+            self.common=corr_lims_common_mat(self.A,self.B,errdist=errdist)
+        
+        return(self.common)
+
+    def get_unshared(self,errdist=False):
+        if not( 'unshared' in self.__dict__):
+            self.unshared=corr_lims_unshared_mat(self.A,self.B,errdist=errdist)
+
+        return(self.unshared)
+
+    def get_lims(self,errdist=False):
+        if not( 'lims' in self.__dict__):
+            self.lims=corr_lims_all(self.A,self.B,errdist=errdist)
+
+        return(self.lims)
+
+    def unshared_prob(self):
+        if not( 'unshared' in self.__dict__):
+            self.unshared=corr_lims_unshared_mat(self.A,self.B,errdist=errdist)
+
+    def get_corr_stats(self,pcorrs=False): 
+        if pcorrs:
+            out = self.get_pcorr_stats(self)
+        else:
+            if not( 'corr_stats' in self.__dict__):
+                self.corr_stats = scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=False)),ml.rtoz(self.B.get_corrs(pcorrs=False)))
+            out = self.corr_stats
+        
+        return out
+
+    def get_pcorr_stats(self): 
+        if not( 'pcorr_stats' in self.__dict__):
+               self.pcorr_stats=scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=pcorrs)),ml.rtoz(self.B.get_corrs(pcorrs=pcorrs)))
+
+        return self.pcorr_stats
+
+    
+    def get_std_stats(self,pcorrs=False): 
+        if not( 'std_stats' in self.__dict__):
+            self.std_stats = scipy.stats.ttest_rel(self.A.get_stds(pcorrs=pcorrs),self.B.get_stds(pcorrs=pcorrs))[0]
+
+        return self.std_stats
+
+    def get_lims(self,pcorrs=False,pctl=0.05,errdist_perms=50,refresh=False):
+        
+        if not( 'lims' in self.__dict__) or refresh:
+            if self.A.tcs == []: 
+                A=FC(np.mean(self.A.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=self.A.dof,ROI_info=self.A.ROI_info)
+                B=FC(np.mean(self.B.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=self.B.dof,ROI_info=self.B.ROI_info)
+            else:
+                A=flatten_tcs(self.A)
+                B=flatten_tcs(self.B)
+            self.lims=corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,pcorrs=pcorrs)
+        return(self.lims)
+
+
+class FC2:
+    def __init__(self,tcs,cov_flag=False,dof=[],ROI_info=[]):
+    
+        if cov_flag==True:
+            self.tcs=[]
             if tcs.ndim==2:
                 tcs=(atleast_3d(tcs).transpose(2,0,1))
             covs=tcs
@@ -187,7 +345,7 @@ class FC:
 
     def get_stds(self,pcorrs=False):
 
-        if ~( 'stds' in self.__dict__):
+        if not( 'stds' in self.__dict__):
             self.stds=diagonal(self.get_covs(pcorrs=pcorrs),axis1=1,axis2=2)**(0.5) 
         return(self.stds)
 
@@ -205,14 +363,14 @@ class FC:
         if pcorrs:
             return(self.get_pcorrs())
         else:
-            if ~( 'corrs' in self.__dict__):
+            if not( 'corrs' in self.__dict__):
                 self.corrs = self.get_covs()/(self.get_stds_m()*self.get_stds_m_t())
             return(self.corrs)
     
     def get_pcorrs(self):
 
-        if ~( 'pcorrs' in self.__dict__):
-            if ~( 'corrs' in self.__dict__):
+        if not( 'pcorrs' in self.__dict__):
+            if not( 'corrs' in self.__dict__):
                 self.corrs = (self.get_covs())/(self.get_stds_m()*self.get_stds_m_t())
             
             self.pcorrs=zeros(self.corrs.shape)
@@ -228,61 +386,13 @@ class FC:
             return self.covs
 
     def _get_pcovs(self):
-        if ~( 'pcorrs' in self.__dict__):
+        if not( 'pcorrs' in self.__dict__):
             pcorrs=self.get_pcorrs()
 
         multiplier = (self.get_stds_m()*transpose(self.get_stds_m(),(0,2,1)))
         
         return(pcorrs*multiplier)
 
-class FC_con:
-    def __init__(self,A,B):     
-        self.A=A
-        self.B=B
-
-    def get_common(self,errdist=False):
-        if ~( 'common' in self.__dict__):
-            self.common=corr_lims_common_mat(self.A,self.B,errdist=errdist)
-        
-        return(self.common)
-
-    def get_unshared(self,errdist=False):
-        if ~( 'unshared' in self.__dict__):
-            self.unshared=corr_lims_unshared_mat(self.A,self.B,errdist=errdist)
-
-        return(self.unshared)
-
-    def get_lims(self,errdist=False):
-        if ~( 'lims' in self.__dict__):
-            self.lims=corr_lims_all(self.A,self.B,errdist=errdist)
-
-        return(self.lims)
-
-    def unshared_prob(self):
-        if ~( 'unshared' in self.__dict__):
-            self.unshared=corr_lims_unshared_mat(self.A,self.B,errdist=errdist)
-
-    def get_corr_stats(self,pcorrs=False): 
-        if pcorrs:
-            out = self.get_pcorr_stats(self)
-        
-        if ~( 'corr_stats' in self.__dict__):
-            self.corr_stats = scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=False)),ml.rtoz(self.B.get_corrs(pcorrs=False)))
-            out = self.corr_stats
-        return out
-
-    def get_pcorr_stats(self): 
-        if ~( 'pcorr_stats' in self.__dict__):
-               self.pcorr_stats=scipy.stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=pcorrs)),ml.rtoz(self.B.get_corrs(pcorrs=pcorrs)))
-
-        return self.pcorr_stats
-
-    
-    def get_std_stats(self,pcorrs=False): 
-        if ~( 'std_stats' in self.__dict__):
-            self.std_stats = scipy.stats.ttest_rel(self.A.get_stds(pcorrs=pcorrs),self.B.get_stds(pcorrs=pcorrs))[0]
-
-        return self.std_stats
 
 
 
@@ -358,7 +468,7 @@ def corr_lims_unshared_mat(A,B,pcorrs=False,errdist=False,errdist_perms=1000,dof
     else:
         return(unshared)
 
-def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',sim_sampling=40,show_pctls=False):
+def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',sim_sampling=40):
 
     if dof==[]:
         dof=A.dof
@@ -404,6 +514,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
         
             lims_struct[a]['min'] = unshared
             lims_struct[a]['max'] = unshared
+            sdf
 
         elif a== 'common':
 
@@ -584,11 +695,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
         if 'covs' in chType:
             #lims_struct['cov']
             
-            if show_pctls:
-                lims_struct['covs']['corrs_raw_A'] = corr_err_A
-                lims_struct['covs']['corrs_raw_B'] = corr_err_B
-                lims_struct['covs']['covs_raw_A'] = covs_err_A
-                lims_struct['covs']['covs_raw_B'] = covs_err_B
+            lims_struct['covs']['corrs_raw_A'] = corr_err_A
+            lims_struct['covs']['corrs_raw_B'] = corr_err_B
+            lims_struct['covs']['covs_raw_A'] = covs_err_A
+            lims_struct['covs']['covs_raw_B'] = covs_err_B
 
             raw = corr_err_A-corr_err_B
             
@@ -602,8 +712,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
             pctl_max = nanpercentile(unshared_lims_err,100-pctl,0)
             pctl_min = nanpercentile(unshared_lims_err,pctl,0)
 
-            if show_pctls:
-                lims_struct['unshared']['pctls_raw'] = unshared_lims_err
+            lims_struct['unshared']['pctls_raw'] = unshared_lims_err
 
             lims_struct['unshared']['min_pctls'] = pctl_min
             lims_struct['unshared']['max_pctls'] = pctl_max
@@ -625,9 +734,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
 
             lims_struct['common']['pctls'] = (Bcorrs> pctl_out_max) != (Bcorrs> pctl_out_min)
 
-            if show_pctls:
-                lims_struct['common']['min_pctls_raw'] = corr_min_common_err
-                lims_struct['common']['max_pctls_raw'] = corr_max_common_err
+            lims_struct['common']['min_pctls_raw'] = corr_min_common_err
+            lims_struct['common']['max_pctls_raw'] = corr_max_common_err
 
         # combined 
 
@@ -647,9 +755,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=[],pctl=10,chType='All',s
             #lims_struct['combined']['pctls'] = (Bcorrs> minimum(pctl_out_max[0] , pctl_out_max[1])) != (Bcorrs> maximum(pctl_out_min[0] ,  pctl_out_min[1]))
             lims_struct['combined']['pctls'] = (Bcorrs> pctl_out_max) != (Bcorrs> pctl_out_min)
 
-            if show_pctls:
-                lims_struct['combined']['min_pctls_raw'] = corr_min_Combined_err
-                lims_struct['combined']['max_pctls_raw'] = corr_max_Combined_err
+            lims_struct['combined']['min_pctls_raw'] = corr_min_Combined_err
+            lims_struct['combined']['max_pctls_raw'] = corr_max_Combined_err
 
     return lims_struct
 
@@ -955,75 +1062,6 @@ def calc_hists(ccs,cc,vvs_all,vv1,vv2,errdist_perms,dof):
     return(array(out_hist_unshared),array(out_hist_common_l),array(out_hist_common_u),array(out_hist_lim_l),array(out_hist_lim_u))
 
 
-def calc_noerr(ccs,cc,vvs_all,vv1,vv2):
-    # calculate histograms of unshared, common, and common effects.
-    # out_hist_unshared=zeros((len(ccs),len(vvs_all),len(vvs_all),len(ccs)))
-    ooA=ones((2,2))
-    ooB=ones((2,2))
-        
-    if isinstance(vv2,numbers.Number):
-        vv2=[vv2]
-    elif vv2==[]:
-        vv2=vvs_all
-        vv1=vvs_all
-
-    if isinstance(vv1,numbers.Number):
-        vv1=[vv1]
-    if isinstance(cc,numbers.Number):
-        cc=[cc]
-
-    if len(cc) < len(vv2):
-        cc=cc*len(vv2)
-    elif len(vv2) < len(cc):
-        vv2=vv2*len(cc)
-
-    if len(cc) < len(vv1):
-        cc=cc*len(vv1)
-    elif len(vv1) < len(cc):
-        vv1=vv1*len(cc)
-
-    if len(vv2) < len(vv1):
-        vv2=vv2*len(vv1)
-    elif len(vv1) < len(vv2):
-        vv1=vv1*len(vv2)
-  
-    out_unshared=zeros(len(vv2))
-    out_common_l=zeros(len(vv2))
-    out_common_u=zeros(len(vv2))
-    out_lim_l=zeros(len(vv2))
-    out_lim_u=zeros(len(vv2))
-    for cnt in range(len(vv2)):
-        
-        ooA[[0,1],[1,0]]=ccs[cc[cnt]]
-        ooA[[0,1],[0,1]]=1
-        tmpA=FC(ooA,cov_flag=True)
-
-        #print('cc[cnt]:'+str(cc[cnt]))
-        ooB[[0],[0]]=vvs_all[vv1[cnt]]
-        ooB[[1],[1]]=vvs_all[vv2[cnt]]
-        ooB[[0,1],[1,0]]=ccs[cc[cnt]]*(vvs_all[vv1[cnt]]**.5)*(vvs_all[vv2[cnt]]**.5)
-
-        tmpB=FC(ooB,cov_flag=True)
-        
-        out_unshared[cnt]=corr_lims_unshared_mat(tmpA,tmpB,errdist=False)[0,0,1]
-        out_common=corr_lims_common_mat(tmpA,tmpB,errdist=False)
-        #out_hist_common_l[cnt]
-        out_common_u[cnt]=out_common[1][1][0,0,1]
-        out_common_l[cnt]=out_common[1][0][0,0,1]
-
-        out_lims=corr_lims_mat(tmpA,tmpB,errdist=False)
-        #out_lim_u[cnt]=out_common[0][1][0,0,1]
-        #out_lim_l[cnt]=out_common[0][0][0,0,1]
-
-        out_lim_u[cnt]=out_lims[1][0,0,1]
-        out_lim_l[cnt]=out_lims[0][0,0,1]
-
-
-        #out_hist_lim_l[cnt,:]=np.histogram(out_lims[2][0][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
-        #out_hist_lim_u[cnt,:]=np.histogram(out_lims[2][1][:,0,1,0],normed=True,range=[0,1],bins=r_[ccs,[1]])[0]
-        
-    return(array(out_unshared),array(out_common_l),array(out_common_u),array(out_lim_l),array(out_lim_u))
-
 def worker(input, output):
     for func, args in iter(input.get, 'STOP'):
         result = calculate(func, args)
@@ -1072,16 +1110,6 @@ def plot_fb(ccs,low,high,vvs=None,cmap=cm.gray,colorbar=True):
 
     # ax.set_title('Change in correlation after adding/removing common signal')
 
-def plot_diffs(A,B,thr,pcorrs=False):
-
-    ccstatsmat = ml.fa((stats.ttest_rel(ml.rtoz(A.get_corrs(pcorrs=pcorrs)),ml.rtoz(B.get_corrs(pcorrs=pcorrs)))[0]))
-
-    lims=cf.corr_lims_mat(A,B, pcorrs=pcorrs)
-    unshared=cf.corr_lims_unshared_mat(A,B)
-    common=cf.corr_lims_common_mat(A,B)
-
-    print(A)
-
 def flatten_tcs(A,dof='EstEff'):
     tcs_dm=pl.demean(A.tcs,2)
     shp=tcs_dm.shape
@@ -1107,6 +1135,61 @@ def flatten_tcs(A,dof='EstEff'):
     out.dof=dof
 
     return(out)
+
+def seed_loader(filenames,seed_mask_file,mask_file,subj_ids=[],dof=300):
+
+    # load data
+    files=[]
+    
+    seed=nb.load(seed_mask_file)
+    seed_mask = seed.get_data()
+    seed_points = where(seed_mask)
+
+    mask=nb.load(mask_file)
+    mask_data = mask.get_data()
+    mask_points = where(mask_data)
+
+    covmat=coo_matrix((len(mask_points[0])+1,len(mask_points[0])+1)).tocsr()
+
+    if type(filenames)==str:
+        filenames=[filenames]
+
+    for file in filenames:
+
+        newfile = nb.load(file)
+        files.append(newfile)
+
+        # load 
+
+        data=newfile.get_data()
+        seed_data = data[seed_points[0],seed_points[1],seed_points[2],:]
+        seed_mean = pl.demean(mean(seed_data,0))
+        data_mask = data[mask_points[0],mask_points[1],mask_points[2],:]
+        
+        vars = var(data_mask,1)
+        covs = sum(seed_mean*pl.demean(data_mask,1),1)/len(seed_mean)
+        # corrs = sum(seed_mean*pl.demean(data_mask,1),1)/(std(seed_mean)*std(data_mask,1)*len(seed_mean))
+
+        # data: corner, top row, first colomn, diag
+        rows=np.r_[0,zeros(vars.shape),arange(len(vars))+1,arange(len(vars))+1]
+        cols=np.r_[0,arange(len(vars))+1,zeros(vars.shape),arange(len(vars))+1]
+        covmat_data=np.r_[var(seed_mean),covs,covs,vars]
+        covmat = covmat + coo_matrix((covmat_data,(rows,cols)),shape=(len(vars)+1,len(vars)+1)).tocsr()
+
+        # FC_cov = FC(covmat
+
+        newfile.uncache()
+    out = FC(covmat,cov_flag=True,dof=dof)
+    return out
+    
+class FC_seed:
+    def __init__(self,filenames,seed_mask,mask,subj_ids):
+
+        for file in filenames:
+            
+            FC.filelist.append(nb.load(file))
+
+
 
 def dr_loader(dir,prefix='dr_stage1',subj_ids=[],ROI_order=[],subjorder=True,dof='EstEff',nosubj=False,read_roi_info=True):
     
@@ -1365,7 +1448,27 @@ def is_numeric(x):
 
         return(False)
 
-def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[],pctl=5,chType='All',sim_sampling=40,show_pctls=True):
+def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[],pctl=5,chType='All',sim_sampling=40):
+
+    out=[]
+    for a in range(len(ccs)):
+
+        ooA=ones((2,2))
+        ooA[[0,1],[1,0]]=ccs[a]
+        ooA[[0,1],[0,1]]=1
+        tmpA=FC(ooA,cov_flag=True,dof=600)
+
+        ooB=ones((2,2))
+        ooB[[0,1],[1,0]]=ccs[a]
+        ooB[0,0]=vvs[a,0]
+        ooB[1,1]=vvs[a,1]
+        tmpB=FC(ooB,cov_flag=True,dof=600)
+
+        out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,chType=chType,sim_sampling=sim_sampling))
+    
+    return(out)
+
+def corr_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[],pctl=5,chType='All',sim_sampling=40,show_pctls=True):
 
     out=[]
     for a in range(len(ccs)):
@@ -1384,3 +1487,4 @@ def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=[
         out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,chType=chType,sim_sampling=sim_sampling,show_pctls=show_pctls))
     
     return(out)
+ 
