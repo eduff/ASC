@@ -75,7 +75,11 @@ def offdiag(x):
     return x.flatten()[find(b!=1)]
 
 def rtoz(x):
-    return(0.5*(np.log(1+x) - np.log(1-x)))
+    els=x.nonzero()
+    out = x*0
+    out[els]=(0.5*(np.log(1+x[els]) - np.log(1-x[els])))
+
+    return out
 
 def crossfunc(x,func):
     xx=np.tile(x,(len(x),1))
@@ -96,7 +100,7 @@ def diag_all(x):
     return intersect1d(triuu,trill)
 
 def flattenall(x,nd=2):
-    
+   
     shp=x.shape
     if (len(shp)==2) & (shp[0]==shp[1]):
         nd=1
