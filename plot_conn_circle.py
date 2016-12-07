@@ -18,10 +18,10 @@ from fractions import Fraction
 import seaborn as sns
 
 # calculate and plot connectivity matrices from an ICA dir
-def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True):
+def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False):
 
-    A = cf.dr_loader(dir,subj_ids=inds1,prefix=prefix)
-    B = cf.dr_loader(dir,subj_ids=inds2,prefix=prefix)
+    A = cf.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
+    B = cf.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
 
     AB_con = cf.FC_con(A,B)
 
@@ -29,26 +29,31 @@ def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_con
 
     return(AB_con)
 
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=''):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.4,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None):
     
-    # gen basic stats 
 
-    inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
-    ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
-    ccstatsmatp=fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1])
+    # gen basic stats 
+    if ccstatsmat is None:
+        inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
+        ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
+        #ccstatsmatp=fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1])
+        vvstatsmat=-AB_con.get_std_stats()
 
     ROI_info = AB_con.A.ROI_info
 
-    vvstatsmat=-AB_con.get_std_stats()
     vv_norm=vvstatsmat/6
     vv_norm[np.isnan(vv_norm)]=0
-    
     n_nodes = AB_con.A.get_covs().shape[1]
 
     lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=False,pctl=pctl)
 
-    Acorrs=fa(AB_con.A.get_corrs(pcorrs=pcorrs))
-    Bcorrs=fa(AB_con.B.get_corrs(pcorrs=pcorrs))
+    # Acorrs=np.mean(fa(AB_con.A.get_corrs(pcorrs=pcorrs)),0)
+    # Bcorrs=np.mean(fa(AB_con.B.get_corrs(pcorrs=pcorrs)),0)
+
+    Acorrs_mat=np.mean(AB_con.A.get_corrs(pcorrs=pcorrs),0,keepdims=True)
+    Acorrs=fa(Acorrs_mat)
+    Bcorrs_mat=np.mean(AB_con.B.get_corrs(pcorrs=pcorrs),0,keepdims=True)
+    Bcorrs=fa(Bcorrs_mat)
 
     if min_corr_diff != 0:
         inds_corr_diff = find(abs(Acorrs-Bcorrs)>min_corr_diff)
@@ -116,7 +121,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     titles= {'unshared':"Addition of uncorrelated signal", 'common':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explained \n by simple signal additions"}
 
     indices=np.triu_indices(n_nodes,1)
-    notin=inds_cc
+    notin=inds_cc.copy()
     inds_plots={}
 
     for plot in plots[:3]:
@@ -126,13 +131,12 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     inds_plots['other'] = notin
 
     if exclude_conns:
-        inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['unshared'])
+        # inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['unshared'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
-
+    
     # produce the four plots 
     cnt=-1
-
     plotccstats= ccstatsmat.astype(float)
 
     for plot in plots:
@@ -234,4 +238,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     if savefig!='':
         fig.savefig(savefig)
 
+    AB_con.lims['covs']['inds_plots']=inds_plots 
+    AB_con.lims['covs']['cc_stats']=ccstatsmat
+    AB_con.lims['covs']['vv_stats']=vvstatsmat
     return(AB_con,inds_plots)
