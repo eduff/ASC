@@ -496,6 +496,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 
                 #if corr2Common_min<0.4:
                 #    sdf
+                #a sdfsdf 
             #if Bstdm > 1.2:
             #    sdf
                 #inds_u=np.maximum(0,floor((rho_yb_u)*sim_sampling).astype(int))
