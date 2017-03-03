@@ -461,8 +461,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                 corr2Common[:]=nan
 
                 for bbb in arange(len(bb)):
-                    #if rho_yb_l > bb[bbb] or rho_yb_u < bb[bbb]:
-                    #    continue
+
                     rho_yb=bb[bbb]
                     weights = calc_weight(Astdmt,Bstdmt,rho_yb)
                     inds_0=[(abs(weights[0])<abs(weights[1]))]
@@ -475,16 +474,17 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                     corr2Common[:,bbb] = (Astdm*Astdmt*Acorrs + wx*wy + wx*Astdmt*rho_xb + wy*Astdm*rho_yb )/(Bstdm*Bstdmt)
 
                     # prevent negative weights
+                    corr2Common[:,bbb][sign(wx) != sign(wy)] = nan
+                    corr2Common[:,bbb][logical_or(rho_yb_l > bb[bbb] , rho_yb_u < bb[bbb])] = nan
                     corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
                     corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
-
+                    
                     #if aaa==38 and bbb==38:
                     #    sdf
                     
                     # prevent negative inital shared components
                     #corr2Common[aaa,:][sign(covsA)==-1]=nan
                     #corr2Common[aaa,:][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
-
                 corr2Common[corr2Common==0]=nan
                 corr2Common[corr2Common<-1]=nan
                 corr2Common[corr2Common>1]=nan
@@ -494,6 +494,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                 corr2Common_max = fmax(corr2Common_max,corr2Common_bbb_max)
                 corr2Common_min = fmin(corr2Common_min,corr2Common_bbb_min)
 
+                #if corr2Common_min<0.4:
+                #    sdf
+            #if Bstdm > 1.2:
+            #    sdf
                 #inds_u=np.maximum(0,floor((rho_yb_u)*sim_sampling).astype(int))
                 #inds_u=tile(inds_u,(sim_sampling,1)).transpose(1,0)
                 ## remove els out correlation range

@@ -35,7 +35,7 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
         errdist_perms=0
 
     vvs_all_1 = r_[arange(-0.5,0,0.05)+1,(arange(.5,0,-00.05)[::-1])+1]
-    vvs_all_2 = ones(vvs_all_1.shape)
+    # vvs_all_2 = ones(vvs_all_1.shape)
     vvs_all_2 = r_[arange(-0.5,0,0.05)+1,(arange(.5,0,-00.05)[::-1])+1]
 
     if vInds == []:
@@ -81,7 +81,6 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
             ooA[[0,1],[0,1]]=1
 
             tmpA=FC(ooA,cov_flag=True,dof=dof)
-            tmpB=FC(ooB,cov_flag=True,dof=dof)
 
             #display(cc)
             for vv in arange(len(vvs_all_1)):
@@ -89,7 +88,9 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
                 ooB[0,0]=vvs_all_1[vv]
                 ooB[1,1]=vvs_all_2[vv]
                 ooB[[0,1],[1,0]]=ccs[cc]*(vvs_all_1[vv]*vvs_all_2[vv])**0.5
-                lims = cf.corr_lims_all(tmpA,tmpB,errdist_perms=errdist_perms,pctl=5,dof=dof,show_pctls=show_pctls)
+
+                tmpB=FC(ooB,cov_flag=True,dof=dof)
+                lims = cf.corr_lims_all(tmpA,tmpB,errdist_perms=errdist_perms,pctl=5,dof=dof) # ,show_pctls=show_pctls)
                 # lims[cc,vv] = cf.corr_lims_all(tmpA,tmpB,errdist=True,errdist_perms=errdist_perms,pctl=5,dof=dof)
 
                 for us in ['common','unshared','combined']:
@@ -97,9 +98,9 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
                     for mm in type_list:
                         if mm in lims[us].keys():
                             if mm[-3:] == 'raw':
-                                out[us][mm][:,cc,vv]=lims[us][mm][:,0,0,1]
+                                out[us][mm][:,cc,vv]=lims[us][mm][:,0,1]
                             else:
-                                out[us][mm][cc,vv]=lims[us][mm][0,0,1]
+                                out[us][mm][cc,vv]=lims[us][mm][0,1]
                         
                 ## out_unshared[cc,vv]=calc_rho_unshared(std_x,vvs_all[vv],std_y,1,ccs[cc])
 
@@ -177,7 +178,6 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
     vvs = vvs_all_1
     if plotExt != '':
         plotExt = '_' + plotExt
-    
     for vInd in vInds:
         if plotExt[-3:]=='raw':
             pctls =  array([1,5,10,20,30,40])
@@ -186,12 +186,11 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
                 #if vInd>4:
                 #    plt.fill_between(ccs,out['combined']['min'][:,vInd],out['combined']['max'][:,vInd],color=cmap((vInd+1)*256/len(vvs_all)),label=str(stds_1[vInd]))
         else:
-            plt.fill_between(ccs,out[plotType]['min'+plotExt][:,vInd]-0.01,out[plotType]['max'+plotExt][:,vInd]+0.01,color=cmap(vInd*256/len(vvs_all_1)),label=str(stds_1[vInd]))
-
+            plt.fill_between(ccs,out[plotType]['min'+plotExt][:,vInd]-0.01,out[plotType]['max'+plotExt][:,vInd]+0.01,color=cmap(int(vInd*256/len(vvs_all_1))),label=str(stds_1[vInd]))
+            # ut[
             #X=array([0.0001,0.0001])
             #Y=array([0.0001,0.0001])
             #cc=ax.pcolor(X,Y,array([[vv,vvs[-1]],[vvs[0],vvs[-1]]]),cmap=cmap)      
-
     if not(repeat_fig):
       ax=plt.gca()
       ax.set_ylim([-1,1])
@@ -227,6 +226,7 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
     
     # fig.savefig('Decreases_sim.pdf')
     fig.savefig('Decreases_both'+str(vInds[0])+'.pdf')
+    return(out)
 
     #else:
     #    ax.set_title('Changes in correlation that can be explained \n by an increase in signal amplitude of '+str(vvs_all[vInds[0]])+'% in both regions.')

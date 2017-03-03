@@ -25,18 +25,17 @@ def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_con
 
     AB_con = cf.FC_con(A,B)
 
-    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True)
+    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True)
 
     return(AB_con)
 
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.4,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.4,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False):
     
 
     # gen basic stats 
     if ccstatsmat is None:
         inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
         ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
-        #ccstatsmatp=fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1])
         vvstatsmat=-AB_con.get_std_stats()
 
     ROI_info = AB_con.A.ROI_info
@@ -45,7 +44,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     vv_norm[np.isnan(vv_norm)]=0
     n_nodes = AB_con.A.get_covs().shape[1]
 
-    lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=False,pctl=pctl)
+    lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
 
     # Acorrs=np.mean(fa(AB_con.A.get_corrs(pcorrs=pcorrs)),0)
     # Bcorrs=np.mean(fa(AB_con.B.get_corrs(pcorrs=pcorrs)),0)
