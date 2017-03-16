@@ -479,12 +479,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                     corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
                     corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
                     
-                    #if aaa==38 and bbb==38:
-                    #    sdf
-                    
                     # prevent negative inital shared components
-                    #corr2Common[aaa,:][sign(covsA)==-1]=nan
-                    #corr2Common[aaa,:][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
+                    corr2Common[:,bbb][sign(covsA)==-1]=nan
+                    #corr2Common[:,bbb][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
+                    corr2Common[:,bbb][sign(covsA)*sign(covsB)==-1]=nan
                 corr2Common[corr2Common==0]=nan
                 corr2Common[corr2Common<-1]=nan
                 corr2Common[corr2Common>1]=nan
