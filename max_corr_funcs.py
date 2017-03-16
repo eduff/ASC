@@ -899,6 +899,7 @@ class wishart_gen:
                 ppA=ppA/sum(ppA)
                 #ppB=ppB/sum(ppB)
                 ppA_cul=(dot(ppA,triu(ones(len(ppA.T)))).T) 
+                ## memory issues
                 #ppB_cul=(dot(ppB,triu(ones(len(ppB.T)))).T) 
                 rand_els = stats.uniform(0,1).rvs(errdist_perms) 
                 els=sort(searchsorted(ppA_cul.flatten(),rand_els)) 
