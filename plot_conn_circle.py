@@ -29,7 +29,7 @@ def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_con
 
     return(AB_con)
 
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.4,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False):
     
 
     # gen basic stats 
@@ -110,9 +110,9 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     group_cols=[]
 
     for a in ROI_info['ROI_RSNs']:     
-        val=1-0.5*a/max(ROI_info['ROI_RSNs'])
-        group_cols.append((val,val,val))
-
+        val=1-0.35*a/max(ROI_info['ROI_RSNs'])
+        group_cols.append((val*0.8,val*0.9,val))
+        print(val)
     # incl_zeros = lims['covs']['incl_zeros']
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
 
