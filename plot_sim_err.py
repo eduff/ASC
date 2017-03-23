@@ -222,10 +222,12 @@ def plot_sim_err(ccs,out=[],errdist_perms=0,calcflag=1,fig=[],plotType='combined
     ax.set_ylabel('Correlation in condition 2')
 
     #if imgtitle==0:
-    ax.set_title('Changes in correlation that can be explained \n by decreases in signal amplitude of one region of .'+str(vvs_all_1[vInds[0]])+'% in one region')
+    # ax.set_title('Changes in correlation that can be explained \n by decreases in signal amplitude of one region of .'+str(vvs_all_1[vInds[0]])+'% in one region')
     
+    ax.set_title('Changes in correlation that can be explained by changes in signal variance \n in two regions associated with '+plotType+' additive signal.')
+
     # fig.savefig('Decreases_sim.pdf')
-    fig.savefig('Decreases_both'+str(vInds[0])+'.pdf')
+    #fig.savefig('Decreases_both'+str(vInds[0])+'.pdf')
     return(out)
 
     #else:
