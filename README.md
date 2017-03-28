@@ -2,7 +2,7 @@
 
 ## Setup environment
 ```bash
->> source <dhcpdir>/setup.py
+>> source <ascdir>/setup.py
 ```
 
 ## Usage
