@@ -257,17 +257,26 @@ def gen_lims_perms(errdist_perms=100,nreps=100,a=0.57741163399813,b=0.7948717948
 
     return(lims1)
 
+# need to separate core module for netmat 
 
 
-
-#
-#if __name__=="__main__":
-#
-#    parser = argparse.ArgumentParser(description="Calc corrs")
-#    parser.add_argument("-e", "--errdist_perms", default=0, help="errdist_perms")
-#    requiredNamed = parser.add_argument_group('required arguments')
-#    requiredNamed.add_argument('-c', '--cc', help='correlation', required=True)
-#    args = parser.parse_args()
-#
-#    plot_sim_err(args.cc,errdist_perms=args.errdist_perms)
-#
+##if __name__=="__main__":
+##
+##    DESC = "FMRI Additive Signal Analysis"
+##        
+##    PARSER = argparse.ArgumentParser(description=DESC, argument_default=argparse.SUPPRESS)
+##
+##    requiredNamed = PARSER.add_argument_group('required arguments')
+##
+##    requiredNamed.add_argument('-d', '--drdir', help='dual_regression dir', required=True)
+##
+##    args = PARSER.parse_args()
+##
+##    plot_sim_err(args.cc,errdist_perms=args.errdist_perms)
+##    
+##    OPT = PARSER.add_argument_group('OPTIONAL')
+##    
+##    OPT.add_argument('-p', '--pc', help='partial correlation', required=True)
+##    OPT.add_argument('-p', '--pc', help='partial correlation', required=True)
+##
+    

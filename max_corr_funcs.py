@@ -1,7 +1,6 @@
 from numpy import *
 import os
 import numpy as np
-import ml_funcs as ml
 import numpy.linalg as la
 import matplotlib.pylab as pl
 import matplotlib.cm as cm
@@ -263,7 +262,6 @@ class FC_con:
     #def get_lims(self,errdist_perms=False):
     #    if not( 'lims' in self.__dict__):
     #        self.lims=corr_lims_all(self.A,self.B,errdist=errdist_perms)
-
     #    return(self.lims)
 
     def get_corr_stats(self,pcorrs=False): 
@@ -271,14 +269,14 @@ class FC_con:
             out = self.get_pcorr_stats(self)
         else:
             if not( 'corr_stats' in self.__dict__):
-                self.corr_stats = stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=False)),ml.rtoz(self.B.get_corrs(pcorrs=False)))
+                self.corr_stats = stats.ttest_rel(rtoz(self.A.get_corrs(pcorrs=False)),rtoz(self.B.get_corrs(pcorrs=False)))
             out = self.corr_stats
         
         return out
 
     def get_pcorr_stats(self): 
         if not( 'pcorr_stats' in self.__dict__):
-               self.pcorr_stats=stats.ttest_rel(ml.rtoz(self.A.get_corrs(pcorrs=pcorrs)),ml.rtoz(self.B.get_corrs(pcorrs=pcorrs)))
+               self.pcorr_stats=stats.ttest_rel(rtoz(self.A.get_corrs(pcorrs=pcorrs)),rtoz(self.B.get_corrs(pcorrs=pcorrs)))
 
         return self.pcorr_stats
 
@@ -339,8 +337,8 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
         inds_plots={}
 
         for plot in plots[:3]:
-            inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
-            notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+            inds_plots[plot]=np.intersect1d(inds_cc,pl.find(fa(lims[plot]['pctls'])))
+            notin = np.setdiff1d(notin,pl.find(fa(lims[plot]['pctls'])))
 
         inds_plots['other'] = notin
 
@@ -594,7 +592,6 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             ppB=zeros((1,100*errdist_perms))
             A_sims=sims_gen_A.get_sims(errdist_perms)
             B_sims=sims_gen_B.get_sims(errdist_perms)
-            print('gen sim')
 
             for xb in arange(errdist_perms):
                 print(xb.astype(str))
@@ -703,7 +700,6 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             lims_struct['combined']['max_pctls_raw'] = corr_max_Combined_err
 
     return lims_struct
-
 
 def calc_percentiles(out_con,pctl,ch_type=['covs','unshared','common','combined'],pcorrs=False):
         A = out_con.A
@@ -1209,7 +1205,9 @@ def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=Tru
             ROI_info['ROI_RSNs'] = ROI_info['ROI_RSNs'][np.in1d(ROI_info['ROI_RSNs'],ROI_info['ROI_RSN_include'])]
 
         if os.path.isfile('ROI_names.txt'):
-            ROI_info['ROI_names']=np.array(open('ROI_names.txt').read().splitlines())
+            with open('ROI_names.txt', 'r') as f:
+                ROI_info['ROI_names']=np.array(f.read().splitlines())
+
         else:
             ROI_info['ROI_names']=np.array([ str(a) for a in np.arange(data.shape[-1]) ])
 
@@ -1273,9 +1271,8 @@ def percentileofscore(data,score,axis):
 def get_covs(A,B=None):
 
     if B is None:
-
         covs=zeros((A.shape[0],A.shape[1],A.shape[1]))
-        
+
         for a in arange(A.shape[0]):
             covs[a,:,:]=cov(A[a,:,:])
     else:
@@ -1471,5 +1468,37 @@ def set_new_data(image, new_data):
     # see if nifty2
     elif image.header['sizeof_hdr'] == 540:
         new_image = nb.Nifti12mage(new_data, image.affine, header=image.header)
-    
-    return new_image
+
+def rtoz(x):
+    els=x.nonzero()
+    out = x*0
+    out[els]=(0.5*(np.log(1+x[els]) - np.log(1-x[els])))
+
+    return out
+
+
+def flattenall(x,nd=2):
+   
+    shp=x.shape
+    if (len(shp)==2) & (shp[0]==shp[1]):
+        nd=1
+
+    firstdim=np.product(shp[:-2])
+    tmp=np.reshape(x,(firstdim,shp[-2],shp[-1]))
+    uts=0.5*((shp[-1]**2)-shp[-1])
+    outmat=np.zeros((firstdim,uts))
+
+    for aa in arange(firstdim):
+        if nd==1:
+            outmat[(uts*aa):(uts*(aa+1))]=triu_all(tmp[aa,:,:])
+        elif len(x.shape)>2:
+            outmat[aa,:]= triu_all(tmp[aa,:,:])
+        else:
+            #  if already flattened
+            outmat=x
+    return outmat
+
+
+
+def triu_all(x):
+    return x.flatten()[pl.find(triu(ones(x.shape),1))]

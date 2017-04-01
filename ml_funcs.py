@@ -556,7 +556,7 @@ def groupwisedemean(datamat,groups):
 
     return datamat
 
-def dr_loader_helper(covtype,ev='design.mat',con='design.con',prefix='dr_stage1',params=[[]],subjs=1,ccsetting=[],prec_flag=False,contrs=[[0,1]],paired=True,subjorder=True,dirs=['.'],dirnames=[[]]):
+def dr_loader_helper(covtype,con='design.con',prefix='dr_stage1',params=[[]],subjs=1,ccsetting=[],prec_flag=False,contrs=[[0,1]],paired=True,subjorder=True,dirs=['.'],dirnames=[[]]):
 
     origdir=os.getcwd()
     corrmat={}

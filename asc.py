@@ -1,35 +1,93 @@
-import scipy.stats as stats
-import mne
-from mne.viz import plot_connectivity_circle
-import max_corr_funcs as cf
-import ml_funcs as ml
-from ml_funcs import flattenall as fa
-import numpy as np
-import scipy, os.path
-import itertools
+#! /usr/bin/env python 
+#
+# Additive Signal Change analysis
+#
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning,module='sklearn') 
+warnings.filterwarnings('ignore', module='matplotlib')
+warnings.filterwarnings('ignore', module='numpy')
+
 import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+import pickle
+import argparse
+import logging
+import scipy.stats as stats
+import glob
+import max_corr_funcs as cf
+from max_corr_funcs import flattenall as fa
+import numpy as np
+np.seterr(divide='ignore', invalid='ignore')
 from matplotlib.pylab import find
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib.backends.backend_pdf import PdfPages
+
+import mne
+from mne.viz import plot_connectivity_circle
+
 from colorline import colorline
 from operator import mul
 from fractions import Fraction
-import seaborn as sns
+
+def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False):
+ 
+    fig = plt.figure(figsize=(20.27, 11.69))
+
+    # logging
+    logdir = os.path.join(dir, 'logs')
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+    logging.basicConfig(filename=op.join(logdir, 'asc.log'), level=logging.DEBUG)
+    logging.info('ASC analysis: %s', datetime.now())
+    logging.info('Workdir:\t\t%s', workdir)
+
+    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
+
+    pickle.dump(out,open(os.path.join(logdir,'test.p'),'wb'))
+
+    return()
 
 # calculate and plot connectivity matrices from an ICA dir
-def plot_conn(dir,inds1,inds2,fig,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False):
+def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False):
+
+    if isinstance(inds1,str):
+        inds1 = np.loadtxt(inds1).astype(int)
+        inds2 = np.loadtxt(inds2).astype(int)
+
+    if isinstance(design,str):
+        design=np.loadtxt(design,skiprows=5)
+
+        inds1 = np.where(design[:,0]==1)[0]
+        inds2 = np.where(design[:,0]==-1)[0]
+
+    if inds1 is None:
+
+        dr_files=np.sort(glob.glob(prefix+'_subject?????.txt'))  
+        npts = len(dr_files) 
+
+        if subj_order:
+            inds1 = np.arange(npts/2)
+            inds2 = np.arange(npts/2) + npts/2
+        else:
+            inds1 = np.arange(0,npts,2)
+            inds2 = np.arange(1,npts,2)
+
 
     A = cf.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
     B = cf.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
 
     AB_con = cf.FC_con(A,B)
 
-    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True)
+    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False)
 
     return(AB_con)
 
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig='',ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
     
 
     # gen basic stats 
@@ -59,8 +117,10 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         inds_cc = np.intersect1d(inds_corr_diff,inds_cc)
 
     # set plot colours
+    
+    #fig.clf()
 
-    fig.clf()
+
     plot_colors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
 
     cdict1 = {'red':   ((0.0, 0.0, 0.0),
@@ -88,7 +148,12 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
     fontsize=9 
 
-    current_palette = sns.color_palette()
+    current_palette = [(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), 
+            (0.3333333333333333, 0.6588235294117647, 0.40784313725490196),
+            (0.7686274509803922, 0.3058823529411765, 0.3215686274509804),
+            (0.5058823529411764, 0.4470588235294118, 0.6980392156862745),
+            (0.8, 0.7254901960784313, 0.4549019607843137),
+            (0.39215686274509803, 0.7098039215686275, 0.803921568627451)]
     sb_cols=current_palette + current_palette + current_palette 
 
     # variance stats
@@ -112,7 +177,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     for a in ROI_info['ROI_RSNs']:     
         val=1-0.35*a/max(ROI_info['ROI_RSNs'])
         group_cols.append((val*0.8,val*0.9,val))
-        print(val)
     # incl_zeros = lims['covs']['incl_zeros']
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
 
@@ -234,10 +298,46 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             colorline(fbwx[:-1], z+1.1,ROI_info['ROI_RSNs'][indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             plt.show()
 
-    if savefig!='':
-        fig.savefig(savefig)
+    if savefig!=None:
+        if nofig==23: 
+            pp = PdfPages(fname)
+            fig.tight_layout(h_pad=1, pad=4)
+            pp.savefig(fig=fig)
+            pp.close()  
+        else:
+            fig.savefig(savefig)
 
     AB_con.lims['covs']['inds_plots']=inds_plots 
     AB_con.lims['covs']['cc_stats']=ccstatsmat
     AB_con.lims['covs']['vv_stats']=vvstatsmat
+
     return(AB_con,inds_plots)
+
+
+if __name__=="__main__":
+
+    DESC = "FMRI Additive Signal Analysis"
+        
+    PARSER = argparse.ArgumentParser(description=DESC, argument_default=argparse.SUPPRESS)
+
+    requiredArgs = PARSER.add_argument_group('required arguments')
+    requiredArgs.add_argument('-i', '--input_dir', help='dual_regression dir', required=True)
+
+    optionalArgs = PARSER.add_argument_group('optional arguments')
+    optionalArgs.add_argument('-d', '--design', help='design file', required=False)
+    optionalArgs.add_argument('--inds1', help='index file 1', required=False)
+    optionalArgs.add_argument('--inds2', help='index file 2', required=False)
+
+    optionalArgs.add_argument('-o', '--out_fname', help='output file [asc.pdf]', required=False)
+    optionalArgs.add_argument('--pcorrs', help='use partial correlation', required=False,type=bool)
+    optionalArgs.add_argument('--errdist_perms', help='permutations for monte carlo', required=False,type=int)
+    optionalArgs.add_argument('--min_corr_diff', help='minimum correlation change', required=False,type=float)
+    optionalArgs.add_argument('--prefix', help='dr prefix', required=False)
+    optionalArgs.add_argument('--pctl', help='percentile of connections to show (FDR)', required=False,type=float)
+    optionalArgs.add_argument('--subj_order', help='subject_order', required=False,type=bool)
+    optionalArgs.add_argument('--exclude_conns', help='exclude connections', required=False, type=bool)
+    
+    ARGS = PARSER.parse_args()
+
+    _main(**vars(ARGS))
+# def _main(dir='.',subj_order=False,pcorrs=False,min_corr_diff=0,fname='asc.pdf',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre=''):
