@@ -1,6 +1,11 @@
 #! /usr/bin/env python 
 #
-# Additive Signal Change analysis
+#!/usr/bin/env python
+#
+# asc.py 
+#
+# Author: Eugene Duff <eugene.duff@gmail.com>
+#
 #
 
 import warnings
@@ -17,10 +22,11 @@ import argparse
 import logging
 import scipy.stats as stats
 import glob
-import max_corr_funcs as cf
-from max_corr_funcs import flattenall as fa
+import asc_funcs as ascf
+from asc_funcs import flattenall as fa
 import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
+
 from matplotlib.pylab import find
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import ListedColormap, BoundaryNorm
@@ -33,12 +39,15 @@ from colorline import colorline
 from operator import mul
 from fractions import Fraction
 
+# main additive signal analysis command-line routine
 def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False):
  
+    # initiate figure
     fig = plt.figure(figsize=(20.27, 11.69))
 
     # logging
     logdir = os.path.join(dir, 'logs')
+
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
@@ -46,25 +55,29 @@ def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=Fals
     logging.info('ASC analysis: %s', datetime.now())
     logging.info('Workdir:\t\t%s', workdir)
 
+    
     AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
 
-    pickle.dump(out,open(os.path.join(logdir,'test.p'),'wb'))
+    pickle.dump(out,open(os.path.join(logdir,'log.p'),'wb'))
 
     return()
 
-# calculate and plot connectivity matrices from an ICA dir
+# calculate and plot connectivity matrices from a dual-regression directory
 def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False):
 
+    # load indexes
     if isinstance(inds1,str):
         inds1 = np.loadtxt(inds1).astype(int)
         inds2 = np.loadtxt(inds2).astype(int)
 
+    # load FSL design file
     if isinstance(design,str):
         design=np.loadtxt(design,skiprows=5)
 
         inds1 = np.where(design[:,0]==1)[0]
         inds2 = np.where(design[:,0]==-1)[0]
 
+    # if necessary, read dual_regression directory to determine indices
     if inds1 is None:
 
         dr_files=np.sort(glob.glob(prefix+'_subject?????.txt'))  
@@ -77,49 +90,44 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
             inds1 = np.arange(0,npts,2)
             inds2 = np.arange(1,npts,2)
 
+    # read data for two states
+    A = ascf.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
+    B = ascf.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
 
-    A = cf.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
-    B = cf.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
+    # generate contrast
+    AB_con = ascf.FC_con(A,B)
 
-    AB_con = cf.FC_con(A,B)
-
+    # calculate limits on contrast
     [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False)
 
     return(AB_con)
 
+# plot_conn_states generates correlation and ASC states for a pair of states.
 def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
     
-
-    # gen basic stats 
+    # generate basic correlation and variance stats 
     if ccstatsmat is None:
         inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
         ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
         vvstatsmat=-AB_con.get_std_stats()
 
-    ROI_info = AB_con.A.ROI_info
-
-    vv_norm=vvstatsmat/6
-    vv_norm[np.isnan(vv_norm)]=0
-    n_nodes = AB_con.A.get_covs().shape[1]
-
+    # generate ASC limits 
     lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
 
-    # Acorrs=np.mean(fa(AB_con.A.get_corrs(pcorrs=pcorrs)),0)
-    # Bcorrs=np.mean(fa(AB_con.B.get_corrs(pcorrs=pcorrs)),0)
-
+    # gen correlation matrices for plotting
     Acorrs_mat=np.mean(AB_con.A.get_corrs(pcorrs=pcorrs),0,keepdims=True)
-    Acorrs=fa(Acorrs_mat)
+    Acorrs=fa(Acorrs_mat)   # flattening
     Bcorrs_mat=np.mean(AB_con.B.get_corrs(pcorrs=pcorrs),0,keepdims=True)
-    Bcorrs=fa(Bcorrs_mat)
+    Bcorrs=fa(Bcorrs_mat)  # flattening
 
+    # min_corr_diff is the minimum change in correlation considered interesting (significant but tiny effects may not be interesting)
     if min_corr_diff != 0:
         inds_corr_diff = find(abs(Acorrs-Bcorrs)>min_corr_diff)
         inds_cc = np.intersect1d(inds_corr_diff,inds_cc)
 
-    # set plot colours
-    
-    #fig.clf()
 
+    ##########################################################    
+    # set plot colours and other specs
 
     plot_colors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
 
@@ -156,9 +164,14 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             (0.39215686274509803, 0.7098039215686275, 0.803921568627451)]
     sb_cols=current_palette + current_palette + current_palette 
 
-    # variance stats
+    # colours for variance stats
 
     vcols=[]
+    # scaling stats for plotting colours for variance change
+    vv_norm=vvstatsmat/6
+    vv_norm[np.isnan(vv_norm)]=0
+    n_nodes = AB_con.A.get_covs().shape[1]
+
     for a in np.arange(n_nodes):
         vcols.append(blue_red1((vv_norm[a]+1)/2))
 
@@ -174,6 +187,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     node_edgecolor='black'
     group_cols=[]
 
+    ROI_info = AB_con.A.ROI_info
     for a in ROI_info['ROI_RSNs']:     
         val=1-0.35*a/max(ROI_info['ROI_RSNs'])
         group_cols.append((val*0.8,val*0.9,val))
@@ -183,6 +197,9 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     plots = ['unshared','common','combined','other']
     titles= {'unshared':"Addition of uncorrelated signal", 'common':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explained \n by simple signal additions"}
 
+    ##########################################################    
+    # plot data
+     
     indices=np.triu_indices(n_nodes,1)
     notin=inds_cc.copy()
     inds_plots={}
@@ -198,18 +215,19 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
         inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
     
-    # produce the four plots 
-    cnt=-1
-    plotccstats= ccstatsmat.astype(float)
+    # produce the four plots for the four ASC classes 
 
+    plotccstats= ccstatsmat.astype(float)
+    cnt=-1
     for plot in plots:
 
         cnt+=1
 
-        # flip color of negative corrs
+        # flip color of changes to negative corrs (neg_norm option)
         if neg_norm==True:
            plotccstats= plotccstats*np.sign(Acorrs)
         
+        # mne plot function
         pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
         # titles
@@ -225,44 +243,51 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             bar.set_facecolor(color)
             bar.set_edgecolor(color)
 
-        sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
-        
-        # plot corr info
-
+        #######################################################
+        # plot correlation info below circle plots
         if plot=='other': 
             plotrange='combined'
         else:
             plotrange=plot
 
-        sort_array['f0']=fa(lims[plotrange]['min_pctls'])[0,inds_plots[plot]]
-        sort_array['f1']=fa(lims[plotrange]['max_pctls'])[0,inds_plots[plot]]
+        #  sorting plotting only those indices requested 
+        sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
+        sort_array['f0']=fa(lims[plotrange]['min_pctls'])[0,inds_plots[plot]]  # 
+        sort_array['f1']=fa(lims[plotrange]['max_pctls'])[0,inds_plots[plot]]  # 
         ii=np.argsort(sort_array,order=['f0','f1'])
 
         if len(ii)>0: 
+            # width of nodes       
             width=np.max((20,len(ii)+10))
+            # ii_ext
             ii_ext=np.r_[ii[0],ii,ii[-1]]
+
+            # fbwx: midpoints for under plots
             fbwx=np.arange(len(ii_ext))+(width - len(ii_ext))/2.
             fbwx[0]=fbwx[0]+0.5  #=np.r_[fbwx[0]-0.5, fbwx,fbwx[-1]+0.5]
             fbwx[-1]=fbwx[-1]-0.5  
 
+            #  axis settings
             ax=plt.subplot(245+cnt,axisbg='white')
-
             ax.set_ylim([-1.,1])
             ax.set_yticks([-1,0,1])
             ax.set_yticks([-0.75,-.25,0,0.25,.5,.75,1],minor=True)
             ax.yaxis.grid(color=[0.7,.95,.95],linestyle='-',linewidth=.5,which='minor')
             ax.yaxis.grid(color=[0.65,.85,.85],linestyle='-',linewidth=2,which='major')
 
+            # first plot bands (fill between)
             if len(fbwx)==1:            
+                # if only one element  
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,alpha=0.4)
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
 
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
             else:
+                # if multple elements  
                 plt.fill_between(fbwx,fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
-
+            
             if neg_norm == True:
                 iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
                 iinegpos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])<abs(Bcorrs[0,inds_plots[plot]])))
@@ -275,6 +300,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
             xes = np.arange(len(ii))+(width - len(ii))/2.
 
+            # now plot correlation in A and B conditions
             plt.plot(np.array([xes,xes])[:,find(iipospos)],[Acorrs[0,inds_plots[plot][iipos]],Bcorrs[0,inds_plots[plot][iipos]]],color=[0,0,1],alpha=1,linewidth=1.5,zorder=1)
             plt.plot(np.array([xes,xes])[:,find(iinegpos)],[Acorrs[0,inds_plots[plot][iineg]],Bcorrs[0,inds_plots[plot][iineg]]],color=[1,0,0],alpha=1,linewidth=1.5,zorder=1)
 
@@ -283,17 +309,18 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             ax.add_patch(line3)
             ax.set_xticks([])
 
-            #
+            # plot points
             line2=plt.scatter((xes)[find(iipospos)],Bcorrs[0,inds_plots[plot][iipos]].T,color='blue',zorder=2)
             line2=plt.scatter((xes)[find(iinegpos)],Bcorrs[0,inds_plots[plot][iineg]].T,color='red',zorder=2)
             line2=plt.scatter((xes)[find(iipospos)],Acorrs[0,inds_plots[plot][iipos]].T,color='white',zorder=2)
             line2=plt.scatter((xes)[find(iinegpos)],Acorrs[0,inds_plots[plot][iineg]].T,color='white',zorder=2)
-            # color line two according to pos or neg change
+
+            # plot line between, colouring line two according to pos or neg change
             cmap=ListedColormap([(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196), (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)])
             norm= BoundaryNorm([-2,0,1,2],cmap.N)
             z=np.zeros(xes.shape[0]+1,)
 
-            # plot network membership
+            # plot network membership above
             colorline(fbwx[:-1], z+1.05,ROI_info['ROI_RSNs'][indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             colorline(fbwx[:-1], z+1.1,ROI_info['ROI_RSNs'][indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
             plt.show()
@@ -307,12 +334,12 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         else:
             fig.savefig(savefig)
 
+    # add stats to AB_con struct
     AB_con.lims['covs']['inds_plots']=inds_plots 
     AB_con.lims['covs']['cc_stats']=ccstatsmat
     AB_con.lims['covs']['vv_stats']=vvstatsmat
 
     return(AB_con,inds_plots)
-
 
 if __name__=="__main__":
 
@@ -340,4 +367,3 @@ if __name__=="__main__":
     ARGS = PARSER.parse_args()
 
     _main(**vars(ARGS))
-# def _main(dir='.',subj_order=False,pcorrs=False,min_corr_diff=0,fname='asc.pdf',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre=''):
