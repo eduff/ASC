@@ -23,58 +23,24 @@ from scipy.sparse import coo_matrix
 from scipy.signal import welch
 from multiprocessing import Process, Queue, current_process, freeze_support
 
-# calculate max and min of additive signal 
-#v#def cmaxmin(std_xa,std_xb,std_ya,rho_a):
-#v#
-#v#    tmp = nan_to_num(sqrt((std_xa*rho_a)**2 - (std_xa**2-std_xb**2)))
-#v#    if len(std_xa.shape)==1: 
-#v#        out = abs_sort(array([(std_xa*rho_a+tmp)/std_ya,(std_xa*rho_a-tmp)/std_ya]))
-#v#    else:
-#v#        data=array([(std_xa*rho_a+tmp)/std_ya ,(std_xa*rho_a-tmp)/std_ya])
-#v#
-#v#        inds=abs(data[0,:])>abs(data[1:wq,:])
-#v#
-#v#        out=data[0,:,:,:]
-#v#        out[inds]=data[1,inds]
-#v#
-#v#    return(out)
-#v#
-#v#def c_neg_maxmin(std_xa,std_xb,std_ya,rho_a):
-#v#
-#v#    tmp=nan_to_num(sqrt((std_xa*rho_a)**2 - (std_xa**2-std_xb**2)))
-#v#
-#v#    if len(std_xa.shape)==1: 
-#v#
-#v#        out=abs_sort(array([-(std_xa*rho_a+tmp)/std_ya,-(std_xa*rho_a-tmp)/std_ya]))
-#v#    else:
-#v#        data=array([-(std_xa*rho_a+tmp)/std_ya ,-(std_xa*rho_a-tmp)/std_ya])
-#v#
-#v#        inds=abs(data[0,:])>abs(data[1,:])
-#v#
-#v#        out=data[0,:]
-#v#        out[inds]=data[1,inds]
-#v#
-#v#    return(out)
-#v#
-
-
-# return(array([(std_xa*rho_a-abs(tmp)/std_ya,(std_xa*rho_a+abs(tmp))/std_ya)]))
 
 # general connectivity matrix class, with methods for calculating correlation etc.
 class FC:
     def __init__(self,tcs,cov_flag=False,dof=None,ROI_info={},mask=None):
     
+        #  reading covariance matrix
         if cov_flag==True:
             self.tcs=None
-            #if tcs.ndim==2:
-            #    tcs=(atleast_3d(tcs).transpose(2,0,1))
+
             covs=tcs
+            
             if dof is None:
                 raise ValueError("Need to specify dof if providing cov.")
             else:
                 self.dof=dof
   
         else:
+            # reading timecourses
             if tcs.ndim==2:
                 tcs=(atleast_3d(tcs).transpose(2,0,1))
             
@@ -109,6 +75,9 @@ class FC:
 
         self.covs = covs
 
+
+    #####  FC functions #####
+
     # calculate std_devs
     def get_stds(self,pcorrs=False):
 
@@ -135,7 +104,7 @@ class FC:
     def get_corrs(self,pcorrs=False):
 
         if pcorrs:
-            return(self.get_pcorrs())
+            return(self._get_pcorrs())
         else:
             if not( 'corrs' in self.__dict__):
                 # initialise as normal/sparse matrix
@@ -150,8 +119,8 @@ class FC:
 
                 self.corrs[els] = array(self.get_covs()[els])/(self.get_stds()[els1]*self.get_stds()[els2])
             return(self.corrs)
-    
-    def get_pcorrs(self):
+    # get partial correlation 
+    def _get_pcorrs(self):
 
         if not( 'pcorrs' in self.__dict__):
             
@@ -169,24 +138,27 @@ class FC:
 
     def _get_pcovs(self):
         if not( 'pcorrs' in self.__dict__):
-            pcorrs=self.get_pcorrs()
+            pcorrs=self._get_pcorrs()
 
         multiplier = (self.get_stds_m()*transpose(self.get_stds_m(),(0,2,1)))
         
         return(pcorrs*multiplier)
 
-# Contrast class for two states, provides ASC analysis limits etc.
+# Class for contrast between two states, provides stats, ASC analysis limits etc.
+
 class FC_con:
     def __init__(self,A,B):     
         self.A=A
         self.B=B
+
     # get basic correlation statistics between two states
     def get_corr_stats(self,pcorrs=False): 
         if pcorrs:
             out = self.get_pcorr_stats(self)
         else:
             if not( 'corr_stats' in self.__dict__):
-                self.corr_stats = stats.ttest_rel(rtoz(self.A.get_corrs(pcorrs=False)),rtoz(self.B.get_corrs(pcorrs=False)))
+                self.corr_stats = stats.ttest_ind(rtoz(self.A.get_corrs(pcorrs=False)),rtoz(self.B.get_corrs(pcorrs=False)))
+            self.corr_stats = stats.ttest_ind(rtoz(self.A.get_corrs(pcorrs=False)),rtoz(self.B.get_corrs(pcorrs=False)))
             out = self.corr_stats
         
         return out
@@ -204,11 +176,12 @@ class FC_con:
 
         return self.std_stats
 
-    
     # get ASC limits
-    def get_lims(self,pcorrs=False,pctl=5,errdist_perms=50,refresh=False,sim_sampling=40):
+    def get_ASC_lims(self,pcorrs=False,pctl=5,errdist_perms=50,refresh=False,sim_sampling=40):
         
         if not( 'lims' in self.__dict__) or refresh:
+
+            # take mean of all subjects if required 
             if self.A.tcs is None and np.ndim(self.A.get_covs())==3: 
                 A=FC(np.mean(self.A.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=self.A.dof,ROI_info=self.A.ROI_info)
                 B=FC(np.mean(self.B.get_covs(pcorrs=pcorrs),0),cov_flag=True, dof=self.B.dof,ROI_info=self.B.ROI_info)
@@ -218,7 +191,9 @@ class FC_con:
             else:
                 A=flatten_tcs(self.A)
                 B=flatten_tcs(self.B)
-            self.lims=corr_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,pcorrs=pcorrs,sim_sampling=sim_sampling)
+
+            # calculate ASC limits
+            self.lims=ASC_lims_all(A,B,errdist_perms=errdist_perms,pctl=pctl,pcorrs=pcorrs,sim_sampling=sim_sampling)
         return(self.lims)
 
     def get_plot_inds(self,inds_cc=None,exclude_conns=True):
@@ -252,6 +227,7 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
             inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['common'])
             inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['uncorrelated'])
     else:
+        # check if correlation matrix is provided
         if not inds_cc:
             inds_cc=np.triu_indices(n_nodes,1)
         indices=np.triu_indices(n_nodes,1)
@@ -264,6 +240,7 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
 
         inds_plots['other'] = notin
 
+        # exclude from additive if in common or uncorrelated
         if exclude_conns:
             inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['uncorrelated'])
             inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['common'])
@@ -275,7 +252,7 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
     return(lims)
 
 # core ASC limits routine
-def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All',sim_sampling=40,mask=None):
+def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All',sim_sampling=40,mask=None):
 
     if not dof:
         dof=A.dof
@@ -285,7 +262,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
     elif type(ch_type)==str:
         ch_type=[ch_type]
 
-    # masking available for image-based analysis
+    # masking for image-based analysis
     if mask is None:
         shp = A.get_covs().shape
         if scipy.sparse.issparse(A.covs):
@@ -300,20 +277,21 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                 third=tile(mask[1],shp[0])
                 mask=tuple((first,second,third))
 
-    # set up basic data files
+    # set up basic data variables
 
+    # flattened covariance and corr matrices
     covsA=array(A.get_covs(pcorrs=pcorrs)[mask])
     covsB=array(B.get_covs(pcorrs=pcorrs)[mask])
 
     Acorrs=array(A.get_corrs(pcorrs=pcorrs)[mask]).flatten()
-
     Bcorrs=array(B.get_corrs(pcorrs=pcorrs)[mask]).flatten()   
     shp=Bcorrs.shape
 
+    # masks for stds
     dims=arange(len(mask))
     els1 = tuple(setdiff1d(dims,dims[-1]))
     els2 = tuple(setdiff1d(dims,dims[-2]))
-
+    
     mask1=tuple(mask[index] for index in els1)
     mask2=tuple(mask[index] for index in els2)
 
@@ -325,7 +303,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
     pctls=None
     lims_struct={}
 
-    # calculate limits for desired types of ASC class 
+    # calculate limits for dfferent types of ASC class 
     for a in ch_type:
         
         lims_struct[a]={}
@@ -334,45 +312,44 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             # uncorrelated signal produces straight forward limits
             lims_struct[a]={}
             uncorrelated = covsA / (Bstdm*Bstdmt)
-            uncorrelated[uncorrelated>1]=1 
-            uncorrelated[uncorrelated<-1]=-1
-        
-            lims_struct[a]['min'] = A.get_covs()*0  
-            lims_struct[a]['min'][mask] = uncorrelated
 
-            lims_struct[a]['max'] = A.get_covs()*0 
+            # large reductions in variance can be greater than is possible for uncorrelated signal, given initial correlation. 
+            # uncorrelated[uncorrelated>1]=1 
+            # uncorrelated[uncorrelated<-1]=-1
+            zz =   A.get_covs()*0
+            lims_struct[a]['min'] = zz.copy()
+            lims_struct[a]['min'][mask] = uncorrelated
+            lims_struct[a]['max'] = zz.copy()
             lims_struct[a]['max'][mask] = uncorrelated
 
-            lims_struct['uncorrelated']['pctls_noerr']=A.get_covs()*0
+            # check whether B (exactly) equal to uncorrelated
+            lims_struct['uncorrelated']['pctls_noerr']=zz.copy()
             lims_struct['uncorrelated']['pctls_noerr'][mask]=(Bcorrs> lims_struct['uncorrelated']['min'][mask]) != (Bcorrs> lims_struct['uncorrelated']['max'][mask])
-
 
         elif a== 'common':
             # to identify limits for common, we sample across possible common signals
 
             # 3d inds = tile(arange(sim_sampling),(shp[0],shp[1],shp[1],1))
-            # 3d corr2Common=zeros((shp[0],shp[1],shp[2],sim_sampling,sim_sampling))
-            # corr2Common=zeros((shp,sim_sampling,sim_sampling))
+            # 3d Common=zeros((shp[0],shp[1],shp[2],sim_sampling,sim_sampling))
+            # 3d Common=zeros((shp,sim_sampling,sim_sampling))
 
+            shp=Acorrs.shape
             inds = tile(arange(sim_sampling),(shp[-1],1))
 
-            # corr2Common stores the limits for each sampled common signal
-            corr2Common_max=zeros(shp)
-            corr2Common_max[:]=nan
-            corr2Common_min=zeros(shp)
-            corr2Common_min[:]=nan
+            # Common stores the limits for each sampled common signal / default to nan
+            Common_max=zeros(shp)*nan
+            Common_min=zeros(shp)*nan
 
-            # sampling range (for correlation of common with X_A
+            # sampling range (for correlation of new signal with X_A and Y_A)
             smpling=(arange(sim_sampling)/(sim_sampling-1.0))
 
+            # make final value slightl less than 1
             smpling[-1]=0.99999
-            Acovsm=A.get_covs()
-            Bcovsm=B.get_covs()
 
-            # orthogonal form
-            a11=Astdm
-            a21=Astdmt*Acorrs
-            a22=sqrt(Astdmt**2-a21**2)
+            # orthogonal components form (see supp materials)
+            a11=Astdm   # std of node 1
+            a21=Astdmt*Acorrs  # std of node 2 projected to node 1
+            a22=sqrt(Astdmt**2-a21**2)     # remaining std of node 2
             
 #x#            # calculation of quadratic 
 #x#            aa=-1
@@ -382,32 +359,41 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 #x#            b_range_n = (-bb - sqrt(bb**2 - 4*aa*cc))/(2*aa)
 #x#            b_range = amin(abs(array([b_range_n,b_range_p])),axis=0)
 #x#            
-            # set up data
-            corr2Common=zeros(shp+(sim_sampling*2,))
-            cc2=zeros(shp+(sim_sampling*2,))
-            cc1=zeros(shp+(sim_sampling*2,))
+            # set up data matrices
+            Common=zeros(shp+(sim_sampling*2,))  # final common signal correlation
+
+            # correlation of 
+            cc1=zeros(shp+(sim_sampling*2,))  # lower correlation
+            cc2=zeros(shp+(sim_sampling*2,))  # upper correlation bound
+
+            #
             kp=zeros(shp+(sim_sampling*2,))
             km=zeros(shp+(sim_sampling*2,))
-            a31a=zeros(shp+(sim_sampling*2,))
+
+            # 
+            a31a=zeros(shp+(sim_sampling*2,)) # std of node 2 projected to node 1
             a31b=zeros(shp+(sim_sampling*2,))
             a32a=zeros(shp+(sim_sampling*2,))
            
+            # variance diffs
             diffX=(Bstdm**2-Astdm**2)
             diffY=(Bstdmt**2-Astdmt**2)
 
+            # sign of change in variance
             signX=sign(Bstdm-Astdm)
             signY=sign(Bstdmt-Astdmt)
 
             cnt=0
                 
-            #  loop over different correlations of X_A with N, calculating X_A
-            for aaa in (arange(len(smpling))/len(smpling))[::(-bbb)]:
+            #  loop over different correlations of X_A with N (new signal), which may be +ve or -ve
 
-                # loop over +ve and -ve X_A component with N
-                for bbb in [-1,1]:
-                    #correlation may be positive or negative
+            for bbb in [-1,1]:
+                #  loop over different correlations of X_A with N, cal
+                for aaa in (arange(len(smpling))/len(smpling))[::(-bbb)]:
+
+                    #match sign to that of original correlation 
                     corrA=signX*aaa
-                    # calculate a_31
+                    # calculate a_31 
                     aa=1
                     bb=2*a11*corrA**2
                     cc=-(corrA**2)*( diffX )
@@ -433,14 +419,15 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                     # now calculate correlations
                     cc1[:,cnt]=(a11*a31)/((a11)*sqrt(a31**2+a32**2))
                     cc2[:,cnt]=(a21*k*a31 + a22*k*a32)/(sqrt((a21**2+a22**2))*sqrt((k*a31)**2+(k*a32)**2))
+
                     cov_max_comm = a11*a21 + a11*a31*k + (a21*a31) + a22*a32 + k*(a31**2  + a32**2 )
                     
-                    corr2Common[:,cnt]=cov_max_comm/(( Bstdm)*( Bstdmt)) 
-                    corr2Common[((a31)**2 + (a32)**2) >abs(diffX),cnt]=nan
-                    corr2Common[((a31*k)**2 + (a32*k)**2) >abs(diffY),cnt]=nan
-                    corr2Common[(2*(a11*a31))<(diffX-abs(diffX)),cnt]=nan
-                    corr2Common[sign(Acorrs)*sign(k)!=(sign(diffY)*sign(diffX)),cnt]=nan
-                    corr2Common[k==pi*2000,cnt]=nan
+                    Common[:,cnt]=cov_max_comm/(( Bstdm)*( Bstdmt)) 
+                    Common[((a31)**2 + (a32)**2) >abs(diffX),cnt]=nan
+                    Common[((a31*k)**2 + (a32*k)**2) >abs(diffY),cnt]=nan
+                    Common[(2*(a11*a31))<(diffX-abs(diffX)),cnt]=nan
+                    Common[sign(Acorrs)*sign(k)!=(sign(diffY)*sign(diffX)),cnt]=nan
+                    Common[k==pi*2000,cnt]=nan
                     #if cnt==46:
                     #    sdf
                     cnt+=1
@@ -464,8 +451,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 #x#                wx[inds_1]=weights[1][inds_1]
 #x#                weightsx=weights 
 #x#                bb= (arange(sim_sampling)/(sim_sampling-1.0)) 
-#x#                corr2Common=zeros(shp+(sim_sampling,))
-#x#                corr2Common[:]=nan
+#x#                Common=zeros(shp+(sim_sampling,))
+#x#                Common[:]=nan
 #x#
 #x#                for bbb in arange(len(bb)):
 #x#
@@ -477,33 +464,33 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 #x#                    wy[:]=nan
 #x#                    wy[inds_0]=weights[0][inds_0]
 #x#                    wy[inds_1]=weights[1][inds_1]
-#x#                    # corr2Common = varA+varadd + 2cov(Aadd) 
-#x#                    corr2Common[:,bbb] = (Astdm*Astdmt*Acorrs + wx*wy + wx*Astdmt*rho_xb + wy*Astdm*rho_yb )/(Bstdm*Bstdmt)
+#x#                    # Common = varA+varadd + 2cov(Aadd) 
+#x#                    Common[:,bbb] = (Astdm*Astdmt*Acorrs + wx*wy + wx*Astdmt*rho_xb + wy*Astdm*rho_yb )/(Bstdm*Bstdmt)
 #x#
 #x#                    # prevent negative weights
-#x#                    corr2Common[:,bbb][sign(wx) != sign(wy)] = nan
-#x#                    ##corr2Common[:,bbb][logical_or(rho_yb_l > bb[bbb] , rho_yb_u < bb[bbb])] = nan
-#x#                    ##corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
-#x#                    ##corr2Common[:,bbb][sign(corr2Common[:,bbb])!=sign(Acorrs)]=nan
+#x#                    Common[:,bbb][sign(wx) != sign(wy)] = nan
+#x#                    ##Common[:,bbb][logical_or(rho_yb_l > bb[bbb] , rho_yb_u < bb[bbb])] = nan
+#x#                    ##Common[:,bbb][sign(Common[:,bbb])!=sign(Acorrs)]=nan
+#x#                    ##Common[:,bbb][sign(Common[:,bbb])!=sign(Acorrs)]=nan
 #x#                    
 #x#                    # prevent negative inital shared components
-#x#                    ##corr2Common[:,bbb][sign(covsA)==-1]=nan
-#x#                    #corr2Common[:,bbb][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
-#x#                    ##corr2Common[:,bbb][sign(covsA)*sign(covsB)==-1]=nan
-#x#                corr2Common[corr2Common==0]=nan
-#x#                corr2Common[corr2Common<-1]=nan
-#x#                corr2Common[corr2Common>1]=nan
+#x#                    ##Common[:,bbb][sign(covsA)==-1]=nan
+#x#                    #Common[:,bbb][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
+#x#                    ##Common[:,bbb][sign(covsA)*sign(covsB)==-1]=nan
+#x#                Common[Common==0]=nan
+#x#                Common[Common<-1]=nan
+#x#                Common[Common>1]=nan
 
-            corr2Common_bbb_max = nanmax(corr2Common,1)
-            corr2Common_bbb_min = nanmin(corr2Common,1)
-            corr2Common_max = fmax(corr2Common_max,corr2Common_bbb_max)
-            corr2Common_min = fmin(corr2Common_min,corr2Common_bbb_min)
+            Common_bbb_max = nanmax(Common,1)
+            Common_bbb_min = nanmin(Common,1)
+            Common_max = fmax(Common_max,Common_bbb_max)
+            Common_min = fmin(Common_min,Common_bbb_min)
            
             lims_struct[a]['min'] = A.get_covs()*0 
-            lims_struct[a]['min'][mask]=corr2Common_min
+            lims_struct[a]['min'][mask]=Common_min
 
             lims_struct[a]['max'] = A.get_covs()*0 
-            lims_struct[a]['max'][mask]=corr2Common_max
+            lims_struct[a]['max'][mask]=Common_max
 
             lims_struct['common']['pctls_noerr']=A.get_covs()*0
             lims_struct['common']['pctls_noerr'][mask]=(Bcorrs> lims_struct['common']['min'][mask]) != (Bcorrs> lims_struct['common']['max'][mask])
@@ -632,8 +619,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             sims_gen_B=wishart_gen(B)
 
             # ppA
-            ppA=zeros((1,100*errdist_perms))
-            ppB=zeros((1,100*errdist_perms))
+            #@ ppA=zeros((1,100*errdist_perms))
+            #@ ppB=zeros((1,100*errdist_perms))
 
             # generate simulated data
             A_sims=sims_gen_A.get_sims(errdist_perms)
@@ -644,7 +631,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
                 A_sim=FC(A_sims[xb],cov_flag=True,dof=A.dof)
                 B_sim=FC(B_sims[xb],cov_flag=True,dof=B.dof)
 
-                out = corr_lims_all(A_sim,B_sim,errdist_perms=0,pcorrs=pcorrs,dof=dof,ch_type=ch_type,sim_sampling=sim_sampling)
+                out = ASC_lims_all(A_sim,B_sim,errdist_perms=0,pcorrs=pcorrs,dof=dof,ch_type=ch_type,sim_sampling=sim_sampling)
 
                 # uncorrelated
                 if ndim(A.covs)==3:
@@ -673,10 +660,10 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 
         if 'covs' in ch_type:
             
-            lims_struct['covs']['corrs_raw_A'] = corr_err_A
-            lims_struct['covs']['corrs_raw_B'] = corr_err_B
-            lims_struct['covs']['covs_raw_A'] = covs_err_A
-            lims_struct['covs']['covs_raw_B'] = covs_err_B
+            #@ lims_struct['covs']['corrs_raw_A'] = corr_err_A
+            #@ lims_struct['covs']['corrs_raw_B'] = corr_err_B
+            #@ lims_struct['covs']['covs_raw_A'] = covs_err_A
+            #@ lims_struct['covs']['covs_raw_B'] = covs_err_B
 
             raw = corr_err_A-corr_err_B
             
@@ -687,7 +674,7 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
 
             pctl_max = nanpercentile(uncorrelated_lims_err,100-pctl,0)
             pctl_min = nanpercentile(uncorrelated_lims_err,pctl,0)
-            lims_struct['uncorrelated']['pctls_raw'] = uncorrelated_lims_err
+            #@ lims_struct['uncorrelated']['pctls_raw'] = uncorrelated_lims_err
 
             lims_struct['uncorrelated']['min_pctls'] = A.get_covs()*0
             lims_struct['uncorrelated']['min_pctls'][mask] = pctl_min
@@ -713,8 +700,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             lims_struct['common']['pctls'] = A.get_covs()*0
             lims_struct['common']['pctls'][mask] = (Bcorrs> pctl_out_max) != (Bcorrs> pctl_out_min)
 
-            lims_struct['common']['min_pctls_raw'] = corr_min_common_err
-            lims_struct['common']['max_pctls_raw'] = corr_max_common_err
+            #@ lims_struct['common']['min_pctls_raw'] = corr_min_common_err
+            #@ lims_struct['common']['max_pctls_raw'] = corr_max_common_err
 
 
 
@@ -732,8 +719,8 @@ def corr_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All
             lims_struct['additive']['pctls'] =  A.get_covs()*0
             lims_struct['additive']['pctls'][mask] = (Bcorrs> pctl_out_max) != (Bcorrs> pctl_out_min)
 
-            lims_struct['additive']['min_pctls_raw'] = corr_min_additive_err
-            lims_struct['additive']['max_pctls_raw'] = corr_max_additive_err
+            #@ lims_struct['additive']['min_pctls_raw'] = corr_min_additive_err
+            #@ lims_struct['additive']['max_pctls_raw'] = corr_max_additive_err
 
     return lims_struct
 
@@ -895,19 +882,19 @@ class wishart_gen:
                 covs_sim=whA.rvs(errdist_perms)/(dof)
                 covs_sim=list(covs_sim)
 
-                ppA=zeros((1,100*errdist_perms))
-                ppB=zeros((1,100*errdist_perms))
+                ppA=zeros((1,10*errdist_perms))
+                #@ppB=zeros((1,10*errdist_perms))
                 
                 whA=[]
                 whB=[]
 
                 # create  
-                for yb in arange(errdist_perms):
+                for yb in arange(10*errdist_perms):
                     whA.append(stats.wishart(dof,covs_sim[yb]))
                     ppA[0,yb]=whA[-1].pdf(squeeze(A.get_covs())*dof)
                     #ppA[0,yb]=1
-                    #whB.append(stats.wishart(dof,covsB_sim[yb,:,:]))
-                    #ppB[0,yb]=whB[-1].pdf(B.get_covs()[xa,:,:]*dof)
+                    #@ whB.append(stats.wishart(dof,covsB_sim[yb,:,:]))
+                    #@ ppB[0,yb]=whB[-1].pdf(B.get_covs()[xa,:,:]*dof)
                     #ppB[0,yb]=1
                    
                 # generate sample
@@ -915,7 +902,8 @@ class wishart_gen:
                 #ppB=ppB/sum(ppB)
                 ppA_cul=(dot(ppA,triu(ones(len(ppA.T)))).T) 
                 ## memory issues
-                #ppB_cul=(dot(ppB,triu(ones(len(ppB.T)))).T) 
+                #@ ppB_cul=(dot(ppB,triu(ones(len(ppB.T)))).T) 
+                
                 rand_els = stats.uniform(0,1).rvs(errdist_perms) 
                 els=sort(searchsorted(ppA_cul.flatten(),rand_els)) 
                 covs_sim=[]
@@ -1000,7 +988,7 @@ def func_star(a_b):
         #Convert `f([1,2])` to `f(1,2)` call 
         niceness=os.nice(0)
         os.nice(5-niceness)
-        return corr_lims_all_pool(*a_b)
+        return ASC_lims_all_pool(*a_b)
 
 def runwithvv2(c):
     vv1s=range(len(vvs_all))
@@ -1119,7 +1107,7 @@ def seed_loader(filenames,seed_mask_file,mask_file,subj_inds=None,dof=None):
 
 def seed_saver(filename,AB_con,mask=None,save_minmax=False,save_corr=False):
 
-    lims=AB_con.get_lims()
+    lims=AB_con.get_ASC_lims()
     plots = list(lims.keys())
     plots.remove('covs') 
 
@@ -1433,7 +1421,7 @@ def is_numeric(x):
 
         return(False)
 
-def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=10,ch_type='All',sim_sampling=40):
+def ASC_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=10,ch_type='All',sim_sampling=40):
 
     out=None
     for a in range(len(ccs)):
@@ -1449,11 +1437,11 @@ def corr_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=N
         ooB[1,1]=vvs[a,1]
         tmpB=FC(ooB,cov_flag=True,dof=600)
 
-        out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,ch_type=ch_type,sim_sampling=sim_sampling))
+        out.append(ASC_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,ch_type=ch_type,sim_sampling=sim_sampling))
     
     return(out)
 
-def corr_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=5,ch_type='All',sim_sampling=40,show_pctls=True):
+def ASC_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=5,ch_type='All',sim_sampling=40,show_pctls=True):
 
     out=None
     for a in range(len(ccs)):
@@ -1469,7 +1457,7 @@ def corr_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=
         ooB[1,1]=vvs[a,1]
         tmpB=FC(ooB,cov_flag=True,dof=600)
 
-        out.append(corr_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,ch_type=ch_type,sim_sampling=sim_sampling,show_pctls=show_pctls))
+        out.append(ASC_lims_all(tmpA,tmpB,pcorrs=pcorrs,errdist=errdist,errdist_perms=errdist_perms,dof=dof,pctl=pctl,ch_type=ch_type,sim_sampling=sim_sampling,show_pctls=show_pctls))
     
     return(out)
 

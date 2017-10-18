@@ -65,6 +65,7 @@ def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=Fals
 # calculate and plot connectivity matrices from a dual-regression directory
 def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False):
 
+
     # load indexes
     if isinstance(inds1,str):
         inds1 = np.loadtxt(inds1).astype(int)
@@ -103,16 +104,17 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
     return(AB_con)
 
 # plot_conn_states generates correlation and ASC states for a pair of states.
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.1,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
     
     # generate basic correlation and variance stats 
     if ccstatsmat is None:
         inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
+        #inds_cc = find(abs(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]))>2)
         ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
         vvstatsmat=-AB_con.get_std_stats()
 
     # generate ASC limits 
-    lims=AB_con.get_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
+    lims=AB_con.get_ASC_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
 
     # gen correlation matrices for plotting
     Acorrs_mat=np.mean(AB_con.A.get_corrs(pcorrs=pcorrs),0,keepdims=True)
@@ -194,8 +196,8 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     # incl_zeros = lims['covs']['incl_zeros']
     #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
 
-    plots = ['unshared','common','combined','other']
-    titles= {'unshared':"Addition of uncorrelated signal", 'common':"Addition of common signal",'combined':"Addition of mixed signals",'other':"Changes not explained \n by simple signal additions"}
+    plots = ['uncorrelated','common','additive','other']
+    titles= {'uncorrelated':"Addition of uncorrelated signal", 'common':"Addition of common signal",'additive':"Mixed additive signals",'other':"Changes not explained \n by additive signal changes"}
 
     ##########################################################    
     # plot data
@@ -205,20 +207,33 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     inds_plots={}
 
     for plot in plots[:3]:
-        inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
-        notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+        if errdist_perms>0:
+            inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
+            notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+            minstr='min_pctls'
+            maxstr='max_pctls'
+        else:
+            inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
+            notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+            minstr='min'
+            maxstr='max'
+
 
     inds_plots['other'] = notin
 
     if exclude_conns:
-        # inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['unshared'])
-        inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['common'])
-        inds_plots['combined']=np.setdiff1d(inds_plots['combined'],inds_plots['unshared'])
+        inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['uncorrelated'])
+        inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['common'])
+        inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['uncorrelated'])
     
     # produce the four plots for the four ASC classes 
 
     plotccstats= ccstatsmat.astype(float)
     cnt=-1
+
+    if fig != None:
+        fig.clf()
+
     for plot in plots:
 
         cnt+=1
@@ -246,14 +261,14 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         #######################################################
         # plot correlation info below circle plots
         if plot=='other': 
-            plotrange='combined'
+            plotrange='additive'
         else:
             plotrange=plot
 
         #  sorting plotting only those indices requested 
         sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
-        sort_array['f0']=fa(lims[plotrange]['min_pctls'])[0,inds_plots[plot]]  # 
-        sort_array['f1']=fa(lims[plotrange]['max_pctls'])[0,inds_plots[plot]]  # 
+        sort_array['f0']=fa(lims[plotrange][minstr])[0,inds_plots[plot]]  # 
+        sort_array['f1']=fa(lims[plotrange][maxstr])[0,inds_plots[plot]]  # 
         ii=np.argsort(sort_array,order=['f0','f1'])
 
         if len(ii)>0: 
@@ -278,15 +293,15 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             # first plot bands (fill between)
             if len(fbwx)==1:            
                 # if only one element  
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,alpha=0.4)
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
+                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext]] ,alpha=0.4)
+                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
 
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
+                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
             else:
                 # if multple elements  
-                plt.fill_between(fbwx,fa(lims['combined']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['combined']['max_pctls'])[0,inds_plots[plot]][ii_ext],alpha=0.4)
-                plt.fill_between(fbwx,fa(lims['common']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['common']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
-                plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
+                plt.fill_between(fbwx,fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],alpha=0.4)
+                plt.fill_between(fbwx,fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
+                plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
             
             if neg_norm == True:
                 iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
@@ -304,7 +319,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             plt.plot(np.array([xes,xes])[:,find(iipospos)],[Acorrs[0,inds_plots[plot][iipos]],Bcorrs[0,inds_plots[plot][iipos]]],color=[0,0,1],alpha=1,linewidth=1.5,zorder=1)
             plt.plot(np.array([xes,xes])[:,find(iinegpos)],[Acorrs[0,inds_plots[plot][iineg]],Bcorrs[0,inds_plots[plot][iineg]]],color=[1,0,0],alpha=1,linewidth=1.5,zorder=1)
 
-            plt.fill_between(fbwx,fa(lims['unshared']['min_pctls'])[0,inds_plots[plot]][ii_ext],fa(lims['unshared']['max_pctls'])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
+            plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
             line3 = plt.Rectangle((0, 0), 0, 0,color=current_palette[0])
             ax.add_patch(line3)
             ax.set_xticks([])
