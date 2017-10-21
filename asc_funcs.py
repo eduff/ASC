@@ -303,6 +303,10 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
     pctls=None
     lims_struct={}
 
+    # variance diffs
+    diffX=(Bstdm**2-Astdm**2)
+    diffY=(Bstdmt**2-Astdmt**2)
+
     # calculate limits for dfferent types of ASC class 
     for a in ch_type:
         
@@ -342,31 +346,21 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
 
             # sampling range (for correlation of new signal with X_A and Y_A)
             smpling=(arange(sim_sampling)/(sim_sampling-1.0))
-
-            # make final value slightl less than 1
-            smpling[-1]=0.99999
+            smpling[-1]=0.99999 # make final value slightl less than 1
 
             # orthogonal components form (see supp materials)
             a11=Astdm   # std of node 1
             a21=Astdmt*Acorrs  # std of node 2 projected to node 1
             a22=sqrt(Astdmt**2-a21**2)     # remaining std of node 2
             
-#x#            # calculation of quadratic 
-#x#            aa=-1
-#x#            bb= -2*a11
-#x#            cc =  ( Bstdm**2-Astdm**2 ) 
-#x#            b_range_p = (-bb + sqrt(bb**2 - 4*aa*cc))/(2*aa)
-#x#            b_range_n = (-bb - sqrt(bb**2 - 4*aa*cc))/(2*aa)
-#x#            b_range = amin(abs(array([b_range_n,b_range_p])),axis=0)
-#x#            
             # set up data matrices
             Common=zeros(shp+(sim_sampling*2,))  # final common signal correlation
 
-            # correlation of 
-            cc1=zeros(shp+(sim_sampling*2,))  # lower correlation
-            cc2=zeros(shp+(sim_sampling*2,))  # upper correlation bound
+            # correlation max and min bounds  remove?
+            #cc1=zeros(shp+(sim_sampling*2,))  # lower correlation
+            #cc2=zeros(shp+(sim_sampling*2,))  # upper correlation bound
 
-            #
+            # 
             kp=zeros(shp+(sim_sampling*2,))
             km=zeros(shp+(sim_sampling*2,))
 
@@ -375,10 +369,6 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
             a31b=zeros(shp+(sim_sampling*2,))
             a32a=zeros(shp+(sim_sampling*2,))
            
-            # variance diffs
-            diffX=(Bstdm**2-Astdm**2)
-            diffY=(Bstdmt**2-Astdmt**2)
-
             # sign of change in variance
             signX=sign(Bstdm-Astdm)
             signY=sign(Bstdmt-Astdmt)
@@ -393,151 +383,107 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
 
                     #match sign to that of original correlation 
                     corrA=signX*aaa
-                    # calculate a_31 
+
+                   # calculate a_31 from quadratic 
                     aa=1
                     bb=2*a11*corrA**2
                     cc=-(corrA**2)*( diffX )
-                    a31a[:,cnt] = (-bb + sqrt(bb**2 - 4*aa*cc))/(2*aa)
-                    #a31b[:,cnt] = (-bb - sqrt(bb**2 - 4*aa*cc))/(2*aa)
-                    a31=a31a[:,cnt]
+                    a31 = (-bb + sqrt(bb**2 - 4*aa*cc))/(2*aa)
+                    #a31a[:,cnt] = (-bb + sqrt(bb**2 - 4*aa*cc))/(2*aa)
+                    #a31=a31a[:,cnt]
 
-                    # now calculate a_32 and k
+                    # now calculate a_32 from quadratic
                     aa = ( Bstdm**2-Astdm**2 ) -2*a11*a31
                     a32a[:,cnt]=bbb*sqrt(abs(aa - a31**2 )) 
                     a32=a32a[:,cnt]
                     
-                    # calculate k
+                    # calculate k, positive and negative  (Case 1, Common Signal, Supporting Info)
                     bb = 2*(a21*a31+a22*a32)
                     cc = -( diffY )
                     kp[:,cnt] = (-bb + sqrt(bb**2 - 4*aa*cc))/(2*aa)
                     km[:,cnt] = (-bb - sqrt(bb**2 - 4*aa*cc))/(2*aa)
                     ks=c_[kp[:,cnt],km[:,cnt]] 
-                    ks[(ks[:,0]*sign(Acorrs)*sign(diffX)*sign(diffY))<0,0]=pi*2000
-                    ks[(ks[:,1]*sign(Acorrs)*sign(diffX)*sign(diffY))<0,1]=pi*2000
+
+                    # exclude wrong sign
+                    ks[(ks[:,0]*sign(Acorrs)*sign(diffX)*sign(diffY))<0,0]=inf
+                    ks[(ks[:,1]*sign(Acorrs)*sign(diffX)*sign(diffY))<0,1]=inf
+
+                    # find the minimum k
                     k=ks[arange(shp[0]),argmin(abs(ks),axis=1)]
+                    
+                    # now calculate correlations  remove?
+                    #cc1[:,cnt]=(a11*a31)/((a11)*sqrt(a31**2+a32**2))
+                    #cc2[:,cnt]=(a21*k*a31 + a22*k*a32)/(sqrt((a21**2+a22**2))*sqrt((k*a31)**2+(k*a32)**2))
 
-                    # now calculate correlations
-                    cc1[:,cnt]=(a11*a31)/((a11)*sqrt(a31**2+a32**2))
-                    cc2[:,cnt]=(a21*k*a31 + a22*k*a32)/(sqrt((a21**2+a22**2))*sqrt((k*a31)**2+(k*a32)**2))
-
+                    # now calculate covariances                     
                     cov_max_comm = a11*a21 + a11*a31*k + (a21*a31) + a22*a32 + k*(a31**2  + a32**2 )
                     
+                    # calculate correlations
                     Common[:,cnt]=cov_max_comm/(( Bstdm)*( Bstdmt)) 
+    
+                    # check that changes are within observed variance limits
                     Common[((a31)**2 + (a32)**2) >abs(diffX),cnt]=nan
                     Common[((a31*k)**2 + (a32*k)**2) >abs(diffY),cnt]=nan
+
+                    # if diffX negative, can't remove more than initial variance  
                     Common[(2*(a11*a31))<(diffX-abs(diffX)),cnt]=nan
+
+                    # exclude sign flips
                     Common[sign(Acorrs)*sign(k)!=(sign(diffY)*sign(diffX)),cnt]=nan
-                    Common[k==pi*2000,cnt]=nan
-                    #if cnt==46:
-                    #    sdf
+
+                    Common[k==inf,cnt]=nan
                     cnt+=1
 
-#x#                #corrmin_comm=cov_out/(( Bstdm)*( Bstdmt) 
-#x#            for aaa in arange(len(smpling)):
-#x#                # calc range of Y corrs for common
-#x#                rho_xb=smpling[aaa]
-#x#                #Acorrs_abs = abs(Acorrs)
-#x#                # calculate range of possible ys
-#x#                (rho_yb_l,rho_yb_u)=calc_pbv(Acorrs,rho_xb)
-#x#
-#x#                # loop over range of possible Y corrs
-#x#                weights = calc_weight(Astdm,Bstdm,rho_xb)
-#x#                inds_0=[(abs(weights[0])<abs(weights[1]))]
-#x#                inds_1=[(abs(weights[0])>=abs(weights[1]))]
-#x#
-#x#                wx=zeros(weights[0].shape)
-#x#                wx[:]=nan
-#x#                wx[inds_0]=weights[0][inds_0]
-#x#                wx[inds_1]=weights[1][inds_1]
-#x#                weightsx=weights 
-#x#                bb= (arange(sim_sampling)/(sim_sampling-1.0)) 
-#x#                Common=zeros(shp+(sim_sampling,))
-#x#                Common[:]=nan
-#x#
-#x#                for bbb in arange(len(bb)):
-#x#
-#x#                    rho_yb=bb[bbb]
-#x#                    weights = calc_weight(Astdmt,Bstdmt,rho_yb)
-#x#                    inds_0=[(abs(weights[0])<abs(weights[1]))]
-#x#                    inds_1=[(abs(weights[0])>=abs(weights[1]))]
-#x#                    wy=zeros(weights[0].shape)
-#x#                    wy[:]=nan
-#x#                    wy[inds_0]=weights[0][inds_0]
-#x#                    wy[inds_1]=weights[1][inds_1]
-#x#                    # Common = varA+varadd + 2cov(Aadd) 
-#x#                    Common[:,bbb] = (Astdm*Astdmt*Acorrs + wx*wy + wx*Astdmt*rho_xb + wy*Astdm*rho_yb )/(Bstdm*Bstdmt)
-#x#
-#x#                    # prevent negative weights
-#x#                    Common[:,bbb][sign(wx) != sign(wy)] = nan
-#x#                    ##Common[:,bbb][logical_or(rho_yb_l > bb[bbb] , rho_yb_u < bb[bbb])] = nan
-#x#                    ##Common[:,bbb][sign(Common[:,bbb])!=sign(Acorrs)]=nan
-#x#                    ##Common[:,bbb][sign(Common[:,bbb])!=sign(Acorrs)]=nan
-#x#                    
-#x#                    # prevent negative inital shared components
-#x#                    ##Common[:,bbb][sign(covsA)==-1]=nan
-#x#                    #Common[:,bbb][transpose(sign(covsA)*sign(covsB),(0,2,1))==-1]=nan
-#x#                    ##Common[:,bbb][sign(covsA)*sign(covsB)==-1]=nan
-#x#                Common[Common==0]=nan
-#x#                Common[Common<-1]=nan
-#x#                Common[Common>1]=nan
-
-            Common_bbb_max = nanmax(Common,1)
-            Common_bbb_min = nanmin(Common,1)
-            Common_max = fmax(Common_max,Common_bbb_max)
-            Common_min = fmin(Common_min,Common_bbb_min)
-           
+            # Common >=0  todo
+            Common_min = fmin(Common_min,nanmin(Common,1))
             lims_struct[a]['min'] = A.get_covs()*0 
             lims_struct[a]['min'][mask]=Common_min
 
+            Common_max = fmax(Common_max,nanmax(Common,1))
             lims_struct[a]['max'] = A.get_covs()*0 
             lims_struct[a]['max'][mask]=Common_max
 
+            # common results 
             lims_struct['common']['pctls_noerr']=A.get_covs()*0
             lims_struct['common']['pctls_noerr'][mask]=(Bcorrs> lims_struct['common']['min'][mask]) != (Bcorrs> lims_struct['common']['max'][mask])
 
-
         elif a == 'additive':
 
-            # cx=cmaxmin(Astdm,Bstdm,Astdmt,Acorrs)[0]
-            # cy=cmaxmin(Astdmt,Bstdmt,Astdm,Acorrs)[0]
-
-            # cx_neg=c_neg_maxmin(Astdm,Bstdm,Astdmt,Acorrs)[0]
-            # cy_neg=c_neg_maxmin(Astdmt,Bstdmt,Astdm,Acorrs)[0]
-
-            # limsa=( Astdm*Astdmt*Acorrs*(1+cx_neg*cy_neg) + cx_neg*Astdmt**2 + cy_neg * Astdm**2) / (Bstdm * Bstdmt)
-            # limsb=( Astdm*Astdmt*Acorrs*(1+cx*cy) + cx*Astdmt**2 + cy * Astdm**2) / (Bstdm * Bstdmt)
-
+            # calculate bounds for Additive Signal addition 
+            # using formulation from Supporting Info., ASC paper
+            # 
+ 
             # set up data
-            diffX=Bstdm**2-Astdm**2
-            dX=(diffX>=0)
-            diffY=Bstdmt**2-Astdmt**2
-            dX=(diffX>=0)
-            dY=(diffY>=0)
+            posX=(diffX>=0)
+            posY=(diffY>=0)
 
+            # known variables
             a11=Astdm
             a21=Astdmt*Acorrs
             a22=sqrt(Astdmt**2-a21**2)
+
+            # unknown variables
             a31=zeros(a22.shape)
             a32=zeros(a22.shape)
             a41=zeros(a22.shape)
             a42p=zeros(a22.shape)
             a42n=zeros(a22.shape)
                 
-            # lims for increases (pos.corr)
-            a32[dX]=sqrt(abs(diffX[dX]-a31[dX]**2))
-            a31[dX]=0
-            a41[dY]=sqrt(abs(a22[dY]**2/(a22[dY]**2+a21[dY]**2)))*sqrt(abs(diffY[dY]))
-            a42p[dY]=-a41[dY]*(a21[dY]/a22[dY])
-            a42n[dY]=a41[dY]*(a21[dY]/a22[dY])
+            # unknown values for max increases in signal (pos.corr) (See Supporting info)
+            a32[posX]=sqrt(abs(diffX[posX]-a31[posX]**2))
+            a31[posX]=0
+            a41[posY]=sqrt(abs(a22[posY]**2/(a22[posY]**2+a21[posY]**2)))*sqrt(abs(diffY[posY]))
+            a42p[posY]=-a41[posY]*(a21[posY]/a22[posY])
+            a42n[posY]=a41[posY]*(a21[posY]/a22[posY])
 
-            # lims for decreases
-            a31[~dX]=diffX[~dX]/a11[~dX]
-            a32[~dX]=sqrt(-a31[~dX]**2-diffX[~dX])
-            a41[~dY]=sqrt(abs(a22[~dY]**2/(a22[~dY]**2+a21[~dY]**2)))*sqrt(abs(diffY[~dY]))
-            a42p[~dY]= (-a21[~dY]*a41[~dY] + diffY[~dY])/a22[~dY] 
-            a42n[~dY]= (a21[~dY]*a41[~dY] + diffY[~dY])/a22[~dY] 
+            # unknown values for max decreases
+            a31[~posX]=diffX[~posX]/a11[~posX]
+            a32[~posX]=sqrt(-a31[~posX]**2-diffX[~posX])
+            a41[~posY]=sqrt(abs(a22[~posY]**2/(a22[~posY]**2+a21[~posY]**2)))*sqrt(abs(diffY[~posY]))
+            a42p[~posY]= (-a21[~posY]*a41[~posY] + diffY[~posY])/a22[~posY] 
+            a42n[~posY]= (a21[~posY]*a41[~posY] + diffY[~posY])/a22[~posY] 
     
-            # varous lims options  a32,a41 pos/neg
+            # varous possible values for min/max lims options e.g. a32,a41 pos/neg
             lims1=a11*a21+a11*a41 + a22*a32 + a32*a42p
             corr1=lims1/(Bstdm*Bstdmt) 
             lims2=a11*a21-a11*a41 - a22*a32 - a32*a42n
@@ -553,12 +499,12 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
 
             # todo mask 
 
-            # check correlation between x_A and y_B,x_B to determine if sign has changed and changes have overshot corr=1/-1
+            # check correlation between x_A and x_B,y_B to determine if changes have overshot corr=1/-1.  If so max_corr = +-1 (see Supp Info)
             cc_xA_yB=a11*(a21+a41)/(Astdm*Bstdmt)
             cc_xA_xB=(a11**2+a11*a31)/(Astdm*Bstdm)
 
             corr1s=((cc_xA_yB)>(cc_xA_xB))&(Acorrs>0)
-            corrm1s=((cc_xA_yB)<-(cc_xA_xB))&(Acorrs<0) # todo diffY
+            corrm1s=((cc_xA_yB)<-(cc_xA_xB))&(Acorrs<0) 
 
             corrmin[corrm1s]=-1
             corrmax[corr1s]=1
@@ -573,16 +519,14 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
             lims_struct['additive']['pctls_noerr']=A.get_covs()*0
             lims_struct['additive']['pctls_noerr'][mask]=(Bcorrs> lims_struct['additive']['min'][mask]) != (Bcorrs> lims_struct['additive']['max'][mask])
 
-
- 
-    # Monte Carlo modelling of uncertainty
+    # Run above with randomised Monte Carlo inputs for modelling of uncertainty (see paper, Supp. Info 1.1.4)
     if errdist_perms > 0:
+
+        # shape of permuted data distribution
         shp_dist = tuple((errdist_perms,shp[0])) 
-        uncorrelated_lims_err=zeros(shp_dist)
 
         # set up data
-
-        # simulated covariances
+        # simulated distributon of underlying covariances
         A_sim_dist=zeros(shp_dist)
         B_sim_dist=zeros(shp_dist)
 
@@ -592,27 +536,13 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
         covs_err_B=zeros(shp_dist)
 
         # distributions of min and max across all 
+        uncorrelated_lims_err=zeros(shp_dist)
         corr_min_common_err=zeros(shp_dist)
         corr_max_common_err=zeros(shp_dist)
         corr_min_additive_err=zeros(shp_dist)
         corr_max_additive_err=zeros(shp_dist)
      
         for xa in arange(1):
-#x#            # inv wishart distribution for covariance 
-#x#            
-#x#            #whA=stats.invwishart(dof,covsA[a,:,:]*(dof-1))
-#x#            #whB=stats.invwishart(dof,covsB[a,:,:]*(dof-1))
-#x#
-#x#            # generate initial cov matrices 
-#x#            #if scipy.sparse.issparse(A.covs):
-#x#            #    whA=stats.wishart(dof,A.
-#x#            #else:
-#x#            #whA=stats.wishart(dof,A.get_covs()[xa,:,:])
-#x#            #whB=stats.wishart(dof,B.get_covs()[xa,:,:])
-#x#
-#x#            #covsA_sim=whA.rvs(100*errdist_perms)/(dof)
-#x#            #covsB_sim=whB.rvs(100*errdist_perms)/(dof)
-#x#            
 
             # generate prior cov matrices
             sims_gen_A=wishart_gen(A)
@@ -856,16 +786,16 @@ class wishart_gen:
         
         if not( 'covs_sim' in self.__dict__) or recalc==True:
 
+            covs=A.get_covs()
+            dof=A.dof
+            # if sparse cov matrix 
             if scipy.sparse.issparse(A.get_covs()):
                 
-                covs=A.get_covs()
                 corrs=A.get_corrs()
-                vars1=covs[0,0]
-                vars2=corrs[0,1:].toarray()
                 cvs=covs.diagonal()[1:]
 
                 # generate random samples from wishart
-                (vars1,vars2,covmat1) = wishart_2(covs[0,0],covs.diagonal()[1:],corrs[0,1:].toarray(),A.dof,size=errdist_perms)
+                (vars1,vars2,covmat1) = wishart_2(covs[0,0],covs.diagonal()[1:],corrs[0,1:].toarray(),dof,size=errdist_perms)
                 covs_sim=[]
 
                 for a in arange(vars2.shape[0]):
@@ -876,45 +806,41 @@ class wishart_gen:
                     covmat[0,1:]=covmat1[a,:]
                     covs_sim.append(covmat)
             else:
-                covs=self.A.get_covs()
-                dof=self.A.dof
+                # simulate underlying "true" covariance
                 whA=stats.wishart(dof,squeeze(covs)[:,:])
-                covs_sim=whA.rvs(errdist_perms)/(dof)
+                covs_sim=whA.rvs(10*errdist_perms)/(dof)
                 covs_sim=list(covs_sim)
 
+                # create  simulated observed covariances from underlying true cov.
                 ppA=zeros((1,10*errdist_perms))
-                #@ppB=zeros((1,10*errdist_perms))
-                
                 whA=[]
-                whB=[]
 
-                # create  
                 for yb in arange(10*errdist_perms):
                     whA.append(stats.wishart(dof,covs_sim[yb]))
                     ppA[0,yb]=whA[-1].pdf(squeeze(A.get_covs())*dof)
-                    #ppA[0,yb]=1
-                    #@ whB.append(stats.wishart(dof,covsB_sim[yb,:,:]))
-                    #@ ppB[0,yb]=whB[-1].pdf(B.get_covs()[xa,:,:]*dof)
-                    #ppB[0,yb]=1
                    
-                # generate sample
+                # generate sample distribution of covariances
                 ppA=ppA/sum(ppA)
-                #ppB=ppB/sum(ppB)
-                ppA_cul=(dot(ppA,triu(ones(len(ppA.T)))).T) 
-                ## memory issues
-                #@ ppB_cul=(dot(ppB,triu(ones(len(ppB.T)))).T) 
+                ppA_cul=(dot(ppA,triu(ones(len(ppA.T)))).T)  ## memory issues
                 
                 rand_els = stats.uniform(0,1).rvs(errdist_perms) 
                 els=sort(searchsorted(ppA_cul.flatten(),rand_els)) 
                 covs_sim=[]
                 for xb in arange(errdist_perms):
                     covs_sim.append(whA[els[xb]].rvs()/dof)
+                #fig=pl.figure(3)
+                #pl.hist(log(ppA[0,:]))
+                #pl.plot(log(ppA_cul))
+                #pl.show()
+                #sdf
+                
 
             self.covs_sim=covs_sim
 
         return(self.covs_sim)
 
 def wishart_2(vars1,vars2,rho,dof,size=1):
+    # generate wishart from 2 variances and correlation matrix 
     
     rho=atleast_2d(rho).T
     vars1=atleast_2d(vars1).T
@@ -930,8 +856,6 @@ def wishart_2(vars1,vars2,rho,dof,size=1):
     covs_sim = np.sqrt(vars1*vars2)*(rho*chis1 + sqrt_rho *(chis1**0.5)*norms)/dof
     vars2_sim = vars2 * ( chis2*(sqrt_rho**2) + (sqrt_rho*norms + rho*(chis1**.5))**2 )/dof
     
-    #vars2_sim = vars2 * ( chis2*(sqrt_rho**2) + ( rho*(chis1**.5))**2 )
-
     return(vars1_sim.T,vars2_sim.T,covs_sim.T)
 
 def wishart_pdf(cov,samples,dof):
