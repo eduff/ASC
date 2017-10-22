@@ -104,7 +104,7 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
     return(AB_con)
 
 # plot_conn_states generates correlation and ASC states for a pair of states.
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.1,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.05,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
     
     # generate basic correlation and variance stats 
     if ccstatsmat is None:
@@ -310,8 +310,11 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
                 iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
                 iinegpos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]<Bcorrs[0,inds_plots[plot]]))
 
+            # plotccstats.flatten()[inds_plots[plot]]
             iipos=ii[iipospos]
             iineg=ii[iinegpos]
+            #if plot == 'other':
+            #    sdf
 
             xes = np.arange(len(ii))+(width - len(ii))/2.
 
