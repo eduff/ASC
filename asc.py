@@ -104,7 +104,7 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
     return(AB_con)
 
 # plot_conn_states generates correlation and ASC states for a pair of states.
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.05,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
     
     # generate basic correlation and variance stats 
     if ccstatsmat is None:
@@ -112,6 +112,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         #inds_cc = find(abs(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]))>2)
         ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
         vvstatsmat=-AB_con.get_std_stats()
+
 
     # generate ASC limits 
     lims=AB_con.get_ASC_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
@@ -220,12 +221,10 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
 
     inds_plots['other'] = notin
-
     if exclude_conns:
         inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['uncorrelated'])
         inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['common'])
         inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['uncorrelated'])
-    
     # produce the four plots for the four ASC classes 
 
     plotccstats= ccstatsmat.astype(float)
@@ -293,13 +292,13 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             # first plot bands (fill between)
             if len(fbwx)==1:            
                 # if only one element  
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext]] ,alpha=0.4)
+                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Grey',alpha=0.4)
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
 
                 plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
             else:
                 # if multple elements  
-                plt.fill_between(fbwx,fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],alpha=0.4)
+                plt.fill_between(fbwx,fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],color=[0.67,0.76,0.85])
                 plt.fill_between(fbwx,fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
                 plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
             
@@ -313,8 +312,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             # plotccstats.flatten()[inds_plots[plot]]
             iipos=ii[iipospos]
             iineg=ii[iinegpos]
-            #if plot == 'other':
-            #    sdf
 
             xes = np.arange(len(ii))+(width - len(ii))/2.
 
