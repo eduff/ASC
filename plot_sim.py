@@ -1,6 +1,6 @@
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
-import max_corr_funcs
+import asc_funcs
 
 # set img, calcflag,
 ccs=arange(0.00001,1,0.02)
@@ -34,15 +34,15 @@ if calcflag == 1:
     # for a in arange(8):
     for cc in arange(len(ccs)):
         for vv in arange(len(vvs_all)):
-            #tmp=max_corr_funcs_diff.corr_lims_2(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
-            tmp=max_corr_funcs.corr_lims(1.0,vvs_all[vv],1.0,vvs_all[vv],ccs[cc])
-            tmp=max_corr_funcs.corr_lims(1.0,vvs_all[vv],1.0,1,ccs[cc])
-            #tmp=scripts2.range(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
+            # tmp=asc_funcs_diff.corr_lims_2(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
+            tmp=asc_funcs.corr_lims(1.0,vvs_all[vv],1.0,vvs_all[vv],ccs[cc])
+            tmp=asc_funcs.corr_lims(1.0,vvs_all[vv],1.0,1,ccs[cc])
+            # tmp=scripts2.range(ccs[cc],.99,1.0,1.0*vvs_all[vv],1,1)
             out[cc,vv,:]=[tmp[0][0],tmp[0][1]]
-            out_common[cc,vv,:]=max_corr_funcs.corr_lims_common(1,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
-            #out_common[cc,vv,:]=calc_rho_xyb(1,vvs_all[vv],std_y,1,ccs[cc])
-            out_unshared[cc,vv]=max_corr_funcs.corr_lims_unshared(std_x,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
-            #out_unshared[cc,vv]=calc_rho_unshared(std_x,vvs_all[vv],std_y,1,ccs[cc])
+            out_common[cc,vv,:]=asc_funcs.corr_lims_common(1,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
+            # out_common[cc,vv,:]=calc_rho_xyb(1,vvs_all[vv],std_y,1,ccs[cc])
+            out_unshared[cc,vv]=asc_funcs.corr_lims_unshared(std_x,vvs_all[vv],std_y,vvs_all[vv],ccs[cc])
+            # out_unshared[cc,vv]=calc_rho_unshared(std_x,vvs_all[vv],std_y,1,ccs[cc])
 
 # blue pallette
 for aaa in arange(8):

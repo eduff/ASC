@@ -34,9 +34,9 @@ for a in arange(15):
     #tcsG[a,:,:]=cf.gen_sim_data(A_real.tcs[a,:,:],covmat=covmat)
 
     # E: switch 
-    tmp=-tcsE[a,0:3,:]*0.7 - 0.3*cf.gen_sim_data(tcsE[a,0:3,:])
-    #tcsE[a,6,:]=std(tcsA[a,6,:])*tmp/std(tmp)
-    tcsE[a,0:3,:]=tmp
+    tmp=-tcsE[a,0:3,:]*sqrt(0.7) - sqrt(0.3)*cf.gen_sim_data(tcsE[a,0:3,:])
+    tcsE[a,0:3,:]=std(tcsA[a,0:3,:])*tmp/std(tmp)
+    # tcsE[a,0:3,:]=tmp
 
     # C: unshared
     for b in arange(3):

@@ -101,7 +101,7 @@ from operator import mul
 from fractions import Fraction
 
 # main additive signal analysis command-line routine
-def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False):
+def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
  
     # initiate figure
     fig = plt.figure(figsize=(20.27, 11.69))
@@ -117,14 +117,14 @@ def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=Fals
     logging.info('Workdir:\t\t%s', workdir)
 
     
-    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
+    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
 
     pickle.dump(out,open(os.path.join(logdir,'log.p'),'wb'))
 
     return()
 
 # calculate and plot connectivity matrices from a dual-regression directory
-def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False):
+def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True):
 
 
     # load indexes
@@ -160,20 +160,18 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
     AB_con = ascf.FC_con(A,B)
 
     # calculate limits on contrast
-    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False)
+    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False,rel=rel)
 
     return(AB_con)
 
 # plot_conn_states generates correlation and ASC states for a pair of states.
-def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False):
+def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False,rel=True):
     
     # generate basic correlation and variance stats 
     if ccstatsmat is None:
-        inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]),alpha=fdr_alpha)[0])
-        #inds_cc = find(abs(fa(AB_con.get_corr_stats(pcorrs=pcorrs)[1]))>2)
-        ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs)[0])
+        inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs,rel=rel)[1]),alpha=fdr_alpha)[0])
+        ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs,rel=rel)[0])
         vvstatsmat=-AB_con.get_std_stats()
-
 
     # generate ASC limits 
     lims=AB_con.get_ASC_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)
