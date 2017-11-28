@@ -82,7 +82,7 @@ import argparse
 import logging
 import scipy.stats as stats
 import glob
-import asc_funcs as ascf
+import asc_funcs
 from asc_funcs import flattenall as fa
 import numpy as np
 
@@ -124,7 +124,7 @@ def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=Fals
     return()
 
 # calculate and plot connectivity matrices from a dual-regression directory
-def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True):
+def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True,fdr_alpha=0.2):
 
 
     # load indexes
@@ -153,14 +153,14 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
             inds2 = np.arange(1,npts,2)
 
     # read data for two states
-    A = ascf.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
-    B = ascf.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
+    A = asc_funcs.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
+    B = asc_funcs.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
 
     # generate contrast
-    AB_con = ascf.FC_con(A,B)
+    AB_con = asc_funcs.FC_con(A,B)
 
     # calculate limits on contrast
-    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False,rel=rel)
+    [AB_con, inds_plots] = plot_conn_stats(AB_con,fig,errdist_perms=errdist_perms,exclude_conns=exclude_conns,savefig=savefig,pctl=pctl,min_corr_diff=min_corr_diff,neg_norm=True,refresh=True,nofig=False,rel=rel,fdr_alpha=fdr_alpha)
 
     return(AB_con)
 
@@ -171,7 +171,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     if ccstatsmat is None:
         inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs,rel=rel)[1]),alpha=fdr_alpha)[0])
         ccstatsmat=-fa(AB_con.get_corr_stats(pcorrs=pcorrs,rel=rel)[0])
-        vvstatsmat=-AB_con.get_std_stats()
+        vvstatsmat=-AB_con.get_std_stats(pcorrs=pcorrs,rel=rel)
 
     # generate ASC limits 
     lims=AB_con.get_ASC_lims(pcorrs=pcorrs,errdist_perms=errdist_perms,refresh=refresh,pctl=pctl)

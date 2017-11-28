@@ -260,7 +260,7 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
     return(lims)
 
 # core ASC limits routine
-def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All',sim_sampling=40,mask=None):
+def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All',sim_sampling=40,mask=None,keepRaw=False):
 
     if not dof:
         dof=A.dof
@@ -459,7 +459,6 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
 
             # calculate bounds for Additive Signal addition 
             # using formulation from Supporting Info., ASC paper
-            # 
  
             # set up data
             posX=(diffX>=0)
@@ -564,7 +563,6 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
             # print(perm_i.astype(str))
             A_sim=FC(A_sims[perm_i],cov_flag=True,dof=A.dof)
             B_sim=FC(B_sims[perm_i],cov_flag=True,dof=B.dof)
-
             out = ASC_lims_all(A_sim,B_sim,errdist_perms=0,pcorrs=pcorrs,dof=dof,ch_type=ch_type,sim_sampling=sim_sampling)
 
             # uncorrelated
@@ -594,12 +592,23 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
 
         lims_struct=calc_percentiles(A,B,lims_struct,pctl,ch_type=['covs','uncorrelated','common','additive'],pcorrs=False)
 
-    if keep_raw==False:
+        if keepRaw==False:
+            for pp in ch_type:
+                if pp=='uncorrelated':
+                    del lims_struct[pp]['pctls_raw']
+                elif pp=='covs':
+                    del lims_struct['covs']['corrs_raw_B']
+                    del lims_struct['covs']['corrs_raw_A']
 
+                    del lims_struct['covs']['covs_raw_B']
+                    del lims_struct['covs']['covs_raw_A']
+                else:
+                    del lims_struct[pp]['min_pctls_raw']
+                    del lims_struct[pp]['max_pctls_raw']
 
     return lims_struct
 
-def calc_percentiles(A,B,lims_struct,pctl,mask=None,ch_type=['covs','uncorrelated','common','additive'],pcorrs=False,keepRaw=False):
+def calc_percentiles(A,B,lims_struct,pctl,mask=None,ch_type=['covs','uncorrelated','common','additive'],pcorrs=False):
 
     if mask is None:
         shp = A.get_covs().shape
@@ -1062,6 +1071,7 @@ def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=Tru
     ROI_info={}
 
     if read_roi_info:
+        #     
 
         if ROI_order is None:
             if os.path.isfile('ROI_order.txt'):
@@ -1093,14 +1103,12 @@ def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=Tru
         if os.path.isfile('ROI_names.txt'):
             with open('ROI_names.txt', 'r') as f:
                 ROI_info['ROI_names']=np.array(f.read().splitlines())
-
         else:
             ROI_info['ROI_names']=np.array([ str(a) for a in np.arange(data.shape[-1]) ])
 
-        # n_nodes=len(ROI_info[ROI_names)
-
         ROI_info['ROI_names']=ROI_info['ROI_names'][ROI_info['ROI_order']]
 
+        ROI_order=ROI_info['ROI_order']
 
     for cnt in arange(subjs):
 
