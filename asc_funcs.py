@@ -11,7 +11,6 @@ import numpy as np
 import matplotlib.cm
 import matplotlib.pylab as pl
 import glob,os, numbers
-import nibabel as nb
 import scipy.stats as stats
 import scipy.sparse
 import spectrum
@@ -23,10 +22,26 @@ from scipy.sparse import coo_matrix
 from scipy.signal import welch
 from multiprocessing import Process, Queue, current_process, freeze_support  # for parallel processing of seed-based connectivity
 
+# optional modules
+try:
+    import nibabel as nb
+except:
+    print("nibabel not detected, no visualisation available")
+
+#############################################################################
 # general connectivity matrix class, with methods for calculating correlation etc.
+
+
 class FC:
-    def __init__(self,tcs,cov_flag=False,dof=None,ROI_info={},mask=None):
+    """ Functional Connectivity Class.
+
     
+    Stores and provides FC data of a number of subjects, including raw time series (optional), covariance, 
+    partial correlation etc.
+    """  
+
+    def __init__(self,tcs,cov_flag=False,dof=None,ROI_info={},mask=None):
+        """  Initialise the FC object. """
         #  reading covariance matrix
         if cov_flag==True:
             self.tcs=None
@@ -77,8 +92,8 @@ class FC:
 
     #####  FC functions #####
 
-    # calculate std_devs
     def get_stds(self,pcorrs=False):
+    """ calculate std_devs. """
 
         if not( 'stds' in self.__dict__):
             sz = self.get_covs(pcorrs=pcorrs).shape
@@ -88,19 +103,18 @@ class FC:
                 self.stds=self.get_covs(pcorrs=pcorrs).diagonal()**0.5
         return(self.stds)
 
-    # calculate std_devs (return matrix form)
     def get_stds_m(self,pcorrs=False):
-
+        """ calculate std_devs (return matrix form). """
         stds_m = self.get_stds(pcorrs=pcorrs)
         return(tile(stds_m,(1,self.covs.shape[1])).reshape(stds_m.shape[0],stds_m.shape[1],stds_m.shape[1]))
 
-    # calculate std_devs (return transpose matrix form)
     def get_stds_m_t(self,pcorrs=False):
+    """ calculate std_devs (return transpose matrix form). """
 
         return transpose(self.get_stds_m(pcorrs=pcorrs),(0,2,1))
 
-    # get correlation (partial)
     def get_corrs(self,pcorrs=False):
+        """ get correlation (partial). """
 
         if pcorrs:
             return(self._get_pcorrs())
@@ -143,15 +157,15 @@ class FC:
         
         return(pcorrs*multiplier)
 
-# Class for contrasts between two states, A and B, providing functions to calculate stats, ASC analysis limits etc.
 
 class FC_con:
-    def __init__(self,A,B):     
+    """ Class for contrasts between two states, A and B, providing functions to calculate stats, ASC analysis limits etc. """
+     def __init__(self,A,B):     
         self.A=A
         self.B=B
 
-    # get basic correlation statistics between two states
     def get_corr_stats(self,pcorrs=False,rel=True): 
+        """  get basic correlation statistics between two states. """
         if pcorrs:
             out = self.get_pcorr_stats(self,rel=rel)
         else:
@@ -165,6 +179,7 @@ class FC_con:
         return out
 
     def get_pcorr_stats(self,rel=True): 
+        """  get basic partial correlation statistics between two states. """
         if not( 'pcorr_stats' in self.__dict__):
             if rel == True:
                 self.pcorr_stats = stats.ttest_rel(rtoz(self.A.get_corrs(pcorrs=True)),rtoz(self.B.get_corrs(pcorrs=True)))
@@ -174,8 +189,8 @@ class FC_con:
 
         return self.pcorr_stats
 
-    # get basic std statistics between two states
     def get_std_stats(self,pcorrs=False,rel=True): 
+        """ get basic std statistics between two states. """
         if not( 'std_stats' in self.__dict__):
             if rel == True:
                 self.std_stats = stats.ttest_rel(self.A.get_stds(pcorrs=pcorrs),self.B.get_stds(pcorrs=pcorrs))[0]
@@ -184,8 +199,8 @@ class FC_con:
 
         return self.std_stats
 
-    # get ASC limits
     def get_ASC_lims(self,pcorrs=False,pctl=5,errdist_perms=50,refresh=False,sim_sampling=40):
+        """  get ASC limits. """
         
         if not( 'lims' in self.__dict__) or refresh:
 
@@ -205,11 +220,12 @@ class FC_con:
         return(self.lims)
 
     def get_plot_inds(self,inds_cc=None,exclude_conns=True):
+        """  get ASC limits. """
                               
         self.lims = gen_plot_inds(self.lims,inds_cc=inds_cc,exclude_conns=exclude_conns)
 
-# determine which connections should be plot in each ASC class 
 def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
+    """ determine which connections should be plot in each ASC class. """ 
     
     plots = list(lims.keys())+ ['other']
     plots.remove('covs') 
@@ -259,15 +275,17 @@ def gen_plot_inds(lims,inds_cc=None,exclude_conns=True):
 
     return(lims)
 
-# core ASC limits routine
 def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All',sim_sampling=40,mask=None,keepRaw=False):
+    """ core ASC limits routine. 
+
+    Takes two states, A and B and convert to  analyses differences. """
 
     if not dof:
         dof=A.dof
 
     if ch_type == 'All':
         ch_type = ['covs','uncorrelated','common','additive']
-    elif type(ch_type)==str:
+    elif type(ch_type)==str:                                                                
         ch_type=[ch_type]
 
     # masking for image-based analysis
@@ -609,7 +627,7 @@ def ASC_lims_all(A,B,pcorrs=False,errdist_perms=0,dof=None,pctl=10,ch_type='All'
     return lims_struct
 
 def calc_percentiles(A,B,lims_struct,pctl,mask=None,ch_type=['covs','uncorrelated','common','additive'],pcorrs=False):
-
+    """ calculate percentiles for  . """
     if mask is None:
         shp = A.get_covs().shape
         if scipy.sparse.issparse(A.covs):
@@ -686,42 +704,8 @@ def calc_percentiles(A,B,lims_struct,pctl,mask=None,ch_type=['covs','uncorrelate
 
     return(lims_struct)
 
-
-# calculate amount of signal with correlation rho_xb to initial signal produces variance change from std_x to std_xb
-def calc_weight(std_xa,std_xb,rho_xb):
-    tmp = sqrt((std_xa*rho_xb)**2 + std_xb**2 -std_xa**2)
-    return(-std_xa*rho_xb + tmp,-std_xa*rho_xb - tmp)
-
-# calculate max,min correlation of rho_bc given rho_ab, rho_ac
-def calc_pbv(rho_xy,rho_xb):
-    min_cc =  (rho_xy*rho_xb) - sqrt(1 - rho_xy**2)*sqrt(1 - rho_xb**2)
-    max_cc =  (rho_xy*rho_xb) + sqrt(1 - rho_xy**2)*sqrt(1 - rho_xb**2)
-    #tmp = sqrt((rho_xy*rho_xb)**2 + 1 - rho_xy**2 -rho_xb**2)
-    return(min_cc,max_cc)
-
-# calculate 
-def cmaxmin_m(std_xa,std_xb,std_ya,rho_a):
-
-           tmp=nan_to_num(sqrt((std_xa*rho_a)**2 - (std_xa**2-std_xb**2)))
-
-           data=array([(std_xa*rho_a+tmp)/std_ya ,(std_xa*rho_a-tmp)/std_ya])
-
-           inds=abs(data[0,:])>abs(data[1,:])
-        
-           out=data[0,:]
-           out[inds]=data[1,inds]
-
-           return(out)
-
-# calculate rho_xyb given variances and init correlation rho_xy
-def calc_rho_xyb(std_x,std_xb,std_y,std_yb,rho_xy,rho_xb):
-    rho_yb = calc_pbv(rho_xy,rho_xb)[0]
-    wx = calc_weight(std_x,std_xb,rho_xb)[0] 
-    wy = calc_weight(std_y,std_yb,rho_yb)[0] 
-    rho_xyb = (std_x*std_y*rho_xy + wx*std_x*rho_xb + wy*std_y*rho_yb + wx*wy )/(std_xb*std_yb)
-    return(rho_xyb)
-
 def abs_sort(x):
+    """ sort according to absolute value. """
     if len(x.shape)==1:
         return x[argsort(abs(x),0)]
     else:
@@ -729,7 +713,7 @@ def abs_sort(x):
         return out
 
 def corr2pcorr(cc):
-
+    """ convert correlation to partial corr. """
     pinvA=linalg.pinv(cc)
     iis=tile(atleast_2d(pinvA.diagonal()).T,pinvA.shape[1])
     dd=diag(pinvA)
@@ -739,13 +723,13 @@ def corr2pcorr(cc):
 
     return(tmp)
 
-# class to generate simulated samples for an observed covariance
 class wishart_gen:
+    """ class to generate simulated samples for a covariance matrix. """
     def __init__(self,A):
         self.A=A
 
     def get_sims(self,errdist_perms,recalc=False):
-
+        """ generate simulated wishart samples """
         A=self.A
         
         if not( 'covs_sim' in self.__dict__) or recalc==True:
@@ -792,19 +776,12 @@ class wishart_gen:
                 covs_sim=[]
                 for xb in arange(errdist_perms):
                     covs_sim.append(whA[els[xb]].rvs()/dof)
-                #fig=pl.figure(3)
-                #pl.hist(log(ppA[0,:]))
-                #pl.plot(log(ppA_cul))
-                #pl.show()
-                #sdf
-                
-
             self.covs_sim=covs_sim
 
         return(self.covs_sim)
 
 def wishart_2(vars1,vars2,rho,dof,size=1):
-    # generate wishart from 2 variances and correlation matrix 
+    """ Generate wishart from 2 variances and correlation matrix. """
     
     rho=atleast_2d(rho).T
     vars1=atleast_2d(vars1).T
@@ -823,6 +800,7 @@ def wishart_2(vars1,vars2,rho,dof,size=1):
     return(vars1_sim.T,vars2_sim.T,covs_sim.T)
 
 def wishart_pdf(cov,samples,dof):
+    """ wishart pdf given cov and dof. """
     if scipy.sparse.issparse(cov):
         var1=cov[0,0]
         var2=cov.diagonal()[1:]
@@ -835,7 +813,7 @@ def wishart_pdf(cov,samples,dof):
     return(cov) 
 
 def var_gamma_pdf(x,std1,std2,rho,dof):
-    # marginal distribution of covariance (not used)
+    """ marginal distribution of covariance. """
     ors = (1-rho**2)
     gamma_d = stats.gamma(dof/2.0)
     first = abs(x)**((dof-1)/2)  / ( gamma_d * sqrt(2^(dof-1)*pi*ors*(std1*std2)**n+1) )
@@ -844,9 +822,8 @@ def var_gamma_pdf(x,std1,std2,rho,dof):
 
     return(first*second*third)
 
-
-
 def pcorr2corr(pcorr):
+    """ calculate approx correlation from pcorr. """
     ipcorr=linalg.pinv(pcorr)
     iis=tile(atleast_2d(ipcorr.diagonal()).T,pcorr.shape[1])
     dd=diag(ipcorr)
@@ -857,6 +834,7 @@ def pcorr2corr(pcorr):
     return(tmp)
 
 def rprior(n=1,r=3,M=eye(2)):
+    """ calculate r prior: n,r,M. """
     out=zeros((n,len(M),len(M)))
     Minv=np.la.pinv(M)
     for a in arange(n):
@@ -864,21 +842,24 @@ def rprior(n=1,r=3,M=eye(2)):
     return(out)
 
 def worker(input, output):
+    """ worker for pprocessing """
     for func, args in iter(input.get, 'STOP'):
         result = calculate(func, args)
         output.put(result)
 
 def calculate(func, args):
+    """ calculator for pprocessing """
     result = func(*args)
     return results
 
 def func_star(a_b):
-        #Convert `f([1,2])` to `f(1,2)` call 
+        """ Convert `f([1,2])` to `f(1,2)` call. """ 
         niceness=os.nice(0)
         os.nice(5-niceness)
         return ASC_lims_all_pool(*a_b)
 
 def runwithvv2(c):
+    """ parallelise variance calculation """
     vv1s=range(len(vvs_all))
     args=itertools.izip(itertools.repeat(ccs),itertools.repeat(ccval),itertools.repeat(vvs_all),vv1s,itertools.repeat(vv1s),itertools.repeat(100),itertools.repeat(100))
     pool=Pool()
@@ -887,31 +868,8 @@ def runwithvv2(c):
     pool.join()
     return(out,pool)
 
-def plot_fb(ccs,low,high,vvs=None,cmap=matplotlib.cm.gray,colorbar=True):
-   
-    fig=pl.gcf()
-    pl.plot(ccs,ccs,color=[0.55,0.55,0.55],label='Test',linewidth=5)
-
-    for a in arange(len(low)):
-        srted=np.sort(c_[low[a],high[a]])
-        pl.fill_between(ccs,srted[:,0],srted[:,1],color=cmap(a*256/len(low)))
-
-    ax=pl.gca()
-
-    if vvs != None:
-        cc=ax.pcolor(array([[.2]]),cmap=cmap,visible=False,vmin=min(vvs),vmax=max(vvs))      
-        if colorbar:
-            cbar=pl.colorbar(cc,shrink=0.5,ticks=vvs,fraction=0.1)
-            cbar.set_label('Proportional change in variance \n in region one in second condition.')
-
-    ax.set_ylim(-1,1)
-    
-    ax.set_xlabel('Correlation in condition 1')
-    ax.set_ylabel('Correlation in condition 2')
-
-    # ax.set_title('Change in correlation after adding/removing common signal')
-
 def flatten_tcs(A,dof='EstEff'):
+    """ Concat timecourses, demeaning, estimating dof """
     tcs_dm=pl.demean(A.tcs,2)
     shp=tcs_dm.shape
     out=FC((reshape(tcs_dm.swapaxes(0,1),[shp[1],-1])),ROI_info=A.ROI_info)
@@ -938,8 +896,7 @@ def flatten_tcs(A,dof='EstEff'):
     return(out)
 
 def seed_loader(filenames,seed_mask_file,mask_file,subj_inds=None,dof=None):
-
-    # load data
+    """ load data for seed analysis """
     files=[]
     
     seed=nb.load(seed_mask_file)
@@ -994,7 +951,9 @@ def seed_loader(filenames,seed_mask_file,mask_file,subj_inds=None,dof=None):
     return out
 
 def seed_saver(filename,AB_con,mask=None,save_minmax=False,save_corr=False):
-
+    """ Save seed analysis results """
+    # todo test for nb
+    
     lims=AB_con.get_ASC_lims()
     plots = list(lims.keys())
     plots.remove('covs') 
@@ -1043,6 +1002,7 @@ def seed_saver(filename,AB_con,mask=None,save_minmax=False,save_corr=False):
     return()
 
 class FC_seed:
+    """ shell file for FC seed file """
     def __init__(self,filenames,seed_mask,mask,subj_inds):
 
         for file in filenames:
@@ -1050,9 +1010,11 @@ class FC_seed:
             FC.filelist.append(nb.load(file))
 
 
-
 def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=True,dof='EstEff',nosubj=False,read_roi_info=True):
+    """ load dual_regression data time courses. 
     
+    todo: expand doc
+    """
     if nosubj:
         dr_files=sort(glob.glob(prefix+'*.txt')) 
     else:
@@ -1070,9 +1032,8 @@ def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=Tru
 
     ROI_info={}
 
+    # load various order specifications from dr_directory
     if read_roi_info:
-        #     
-
         if ROI_order is None:
             if os.path.isfile('ROI_order.txt'):
                 ROI_order=np.loadtxt('ROI_order.txt').astype(int)-1
@@ -1143,18 +1104,19 @@ def dr_loader(dir,prefix='dr_stage1',subj_inds=None,ROI_order=None,subjorder=Tru
     return A
 
 def dr_saver(A,dir,prefix='dr_stage1',goodnodes=None,aug=0):
+    """ save tcs into dual_regression format """
    tcs =  A.tcs
    dof = A.dof
 
    if goodnodes is None:
        goodnodes = range(tcs.shape[1])
 
-
    for subj in arange(tcs.shape[0]):
         numb = str(subj+aug)
         savetxt(dir+'/'+prefix+'_subject'+numb.zfill(5)+'.txt', atleast_2d(tcs[subj,goodnodes,:].T))
 
 def percentileofscore(data,score,axis):
+    """ calculate a percentile for given data. """
 
     data_sort = np.sort(data,axis)
     results = np.argmax((data_sort > score),axis) / np.float(data.shape[axis])
@@ -1163,7 +1125,7 @@ def percentileofscore(data,score,axis):
 
 
 def get_covs(A,B=None):
-
+    """ get covariances from FC. """
     if B is None:
         covs=zeros((A.shape[0],A.shape[1],A.shape[1]))
 
@@ -1175,6 +1137,7 @@ def get_covs(A,B=None):
     return covs
 
 def get_corrs(A,B=None,pcorrs=False):
+    """ get correlations from FC. """
     
     if B is None:
 
@@ -1190,15 +1153,8 @@ def get_corrs(A,B=None,pcorrs=False):
 
     return corrs
 
-
-def comb_index(n, k):
-    count = comb(n, k, exact=True)
-    index = np.fromiter(chain.from_iterable(combinations(range(n), k)), 
-                        int, count=count*k)
-    return index.reshape(-1, k)
-
 def make_psd_tcs(tcs,PSD=False,nreps=1,norm=False,tpts=None):
-    
+    """ generate timecourses with given cross PSD """
     if tpts is None:
         tpts = tcs.shape[-1]
 
@@ -1222,30 +1178,14 @@ def make_psd_tcs(tcs,PSD=False,nreps=1,norm=False,tpts=None):
     
     iPx=(tmp,interp(tmp))
 
-    #tI=tile(arange(tpts)*tr/(2*tpts),(tcs.shape[0],tcs.shape[1],1))
-    #interp(tI,tPx[0],Px[1])
-
     Ax = np.sqrt(iPx[1])
     rand_tcs=zeros(tcs.shape)
 
     rnds = np.random.random(Ax.shape)
     rnds_fft = np.fft.fft(rnds/std(rnds,-1,keepdims=True))
 
-    # Zx=zeros(Ax.shape)
     Zx = Ax*rnds_fft 
     
-    #Ph=np.random.randn(Ax.shape[0])*360
-    #Zx = Ax*(e**(Ph*1j))
-    #ZZx=zeros(tcs.shape).astype(complex)
-    #ZZx[:,:,-(Zx.shape[2]+1):-1]=Zx
-#    for aa in arange(tcs.shape[0]):
-#        for bb in arange(tcs.shape[1]):
-#            iPx[1][a,b] = interp(Px
-#            llx=len(Px[0])
-#            init=aa*llx
-#            endd=min(aa*llx+llx,tcs.shape[2])
-#            rand_tcs[:,:,aa*llx:(aa*llx+min(aa*llx+llx,tcs.shape[2]))]=np.fft.ifft(Zx)[:,:,:(endd-(aa*llx))]
-
     rand_tcs=np.fft.ifft(Zx)
 
     if norm:
@@ -1256,7 +1196,7 @@ def make_psd_tcs(tcs,PSD=False,nreps=1,norm=False,tpts=None):
     return real(rand_tcs)
 
 def gen_sim_data(tcs,covmat=array([]),nreps=-1):
-
+    """ generate simulated data matching PSD and covariance matrix. """
     if tcs.ndim <3:
         tcs=rollaxis(atleast_3d(tcs),2,0)
 
@@ -1269,7 +1209,7 @@ def gen_sim_data(tcs,covmat=array([]),nreps=-1):
         #covmat = atleast_3d(covmat).transpose((2,0,1))
 
     if tcs.shape[0]==1 & len(tcs.shape)==2:
-        gen_tcs =  make_psd_tcs(tcs) #+  mean(tcs,-1,keepdims=True)
+        gen_tcs =  make_psd_tcs(tcs) 
     else:
         if len(covmat)==0:
             if tcs.shape[-2]>=1:
@@ -1293,6 +1233,7 @@ def gen_sim_data(tcs,covmat=array([]),nreps=-1):
     return gen_tcs
 
 def rightShift1(tup, n):
+    """ shift tuple elements right. """
     try:
         n = len(tup) - ( n % len(tup))
     except ZeroDivisionError:
@@ -1300,6 +1241,7 @@ def rightShift1(tup, n):
     return tup[n:] + tup[0:n]
 
 def is_numeric(x):
+    """ check if input is numeric. """
     try:
         a = 5+x
         return(True)
@@ -1309,7 +1251,7 @@ def is_numeric(x):
         return(False)
 
 def ASC_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=10,ch_type='All',sim_sampling=40):
-
+    """ simulate new data todo """
     out=None
     for a in range(len(ccs)):
 
@@ -1329,7 +1271,7 @@ def ASC_lims_all_sim(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=No
     return(out)
 
 def ASC_lims_all_pool(ccs,vvs,pcorrs=False,errdist=False,errdist_perms=100,dof=None,pctl=5,ch_type='All',sim_sampling=40,show_pctls=True):
-
+    """ pool ASC for parallel processing. """
     out=None
     for a in range(len(ccs)):
 
@@ -1364,6 +1306,7 @@ def set_new_data(image, new_data):
         new_image = nb.Nifti12mage(new_data, image.affine, header=image.header)
 
 def rtoz(x):
+    """ calculate z from r. """
     els=x.nonzero()
     out = x*0
     out[els]=(0.5*(np.log(1+x[els]) - np.log(1-x[els])))
@@ -1372,7 +1315,7 @@ def rtoz(x):
 
 
 def flattenall(x,nd=2):
-   
+    """ flatten first two dims of matrices.  """
     shp=x.shape
     if (len(shp)==2) & (shp[0]==shp[1]):
         nd=1
@@ -1393,4 +1336,5 @@ def flattenall(x,nd=2):
     return outmat
 
 def triu_all(x):
+    """ upper triangular of first two dims. """
     return x.flatten()[pl.find(triu(ones(x.shape),1))]

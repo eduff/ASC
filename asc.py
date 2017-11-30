@@ -67,6 +67,18 @@
 #   Innovation Limited ("Isis"), the technology transfer company of the
 #   University, to negotiate a licence. Contact details are:
 #   innovation@isis.ox.ac.uk quoting reference DE/9564.
+""" Additive Signal Change Analysis
+
+This module provides tools for estimating and plotting Additive Signal Change (ASC). Functions are provided for both netmat based analyses, and image based seed analyses (using nibabel). 
+
+Provides a procedural interface primarily for interactively. 
+
+Modules include: 
+    :mod:`asc_funcs`
+        provides helper functions
+
+Todo:
+"""
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning,module='sklearn') 
@@ -81,51 +93,39 @@ import pickle
 import argparse
 import logging
 import scipy.stats as stats
+import numpy as np
 import glob
 import asc_funcs
 from asc_funcs import flattenall as fa
-import numpy as np
-
-np.seterr(divide='ignore', invalid='ignore')
+from colorline import colorline
+from operator import mul
+from fractions import Fraction
 
 from matplotlib.pylab import find
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.backends.backend_pdf import PdfPages
 
-import mne
-from mne.viz import plot_connectivity_circle
+# optional
+try:
+    import mne
+    from mne.viz import plot_connectivity_circle
+except:
+    print("MNE not detected, no visualisation")
 
-from colorline import colorline
-from operator import mul
-from fractions import Fraction
+np.seterr(divide='ignore', invalid='ignore')
 
-# main additive signal analysis command-line routine
-def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
- 
-    # initiate figure
-    fig = plt.figure(figsize=(20.27, 11.69))
 
-    # logging
-    logdir = os.path.join(dir, 'logs')
-
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
-
-    logging.basicConfig(filename=op.join(logdir, 'asc.log'), level=logging.DEBUG)
-    logging.info('ASC analysis: %s', datetime.now())
-    logging.info('Workdir:\t\t%s', workdir)
-
-    
-    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
-
-    pickle.dump(out,open(os.path.join(logdir,'log.p'),'wb'))
-
-    return()
-
+################################################################################
 # calculate and plot connectivity matrices from a dual-regression directory
-def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True,fdr_alpha=0.2):
 
+def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True,fdr_alpha=0.2):
+    """  Perform Additive Signal Change analysis and plot results.
+
+    Key arguments
+    dir -- directory of time courses (e.g. dual regression)
+    design -- 
+    """
 
     # load indexes
     if isinstance(inds1,str):
@@ -164,9 +164,13 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
 
     return(AB_con)
 
-# plot_conn_states generates correlation and ASC states for a pair of states.
+################################################################################
+# plot_conn_stats 
+
+
 def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,fdr_alpha=0.2,exclude_conns=True,savefig=None,ccstatsmat=None,inds_cc=None,vvstatsmat=None,refresh=False,nofig=False,rel=True):
-    
+    """ generates correlation and ASC stats for a pair of states. """
+
     # generate basic correlation and variance stats 
     if ccstatsmat is None:
         inds_cc = find(mne.stats.fdr_correction(fa(AB_con.get_corr_stats(pcorrs=pcorrs,rel=rel)[1]),alpha=fdr_alpha)[0])
@@ -187,8 +191,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         inds_corr_diff = find(abs(Acorrs-Bcorrs)>min_corr_diff)
         inds_cc = np.intersect1d(inds_corr_diff,inds_cc)
 
-
-    ##########################################################    
+    ##################################
     # set plot colours and other specs
 
     plot_colors=[(0.2,0.6,1),(0.62,0.82,0.98),(0.40,0.95,0.46),(0.6,0.95,0.6),(0.15,0.87,0.87),(0.8,0.8,0.8)]
@@ -249,17 +252,16 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     node_edgecolor='black'
     group_cols=[]
 
+    # colours for ROIs
     ROI_info = AB_con.A.ROI_info
     for a in ROI_info['ROI_RSNs']:     
         val=1-0.35*a/max(ROI_info['ROI_RSNs'])
         group_cols.append((val*0.8,val*0.9,val))
-    # incl_zeros = lims['covs']['incl_zeros']
-    #inds_cc=find(mne.stats.fdr_correction(2*(0.5-abs(0.5-fa(incl_zeros))),alpha=0.02)[0])
 
     plots = ['uncorrelated','common','additive','other']
     titles= {'uncorrelated':"Addition of uncorrelated signal", 'common':"Addition of common signal",'additive':"Mixed additive signals",'other':"Changes not explained \n by additive signal changes"}
 
-    ##########################################################    
+    #################################
     # plot data
      
     indices=np.triu_indices(n_nodes,1)
@@ -278,135 +280,139 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             minstr='min'
             maxstr='max'
 
-
     inds_plots['other'] = notin
     if exclude_conns:
         inds_plots['common']=np.setdiff1d(inds_plots['common'],inds_plots['uncorrelated'])
         inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['common'])
         inds_plots['additive']=np.setdiff1d(inds_plots['additive'],inds_plots['uncorrelated'])
-    # produce the four plots for the four ASC classes 
 
     plotccstats= ccstatsmat.astype(float)
+
+    # flip color of changes to negative corrs (neg_norm option)
+    if neg_norm==True:
+       plotccstats= plotccstats*np.sign(Acorrs)
+
     cnt=-1
+
+    #################################
+    # produce the four plots for the four ASC classes 
 
     if fig != None:
         fig.clf()
 
-    for plot in plots:
+        for plot in plots:
 
-        cnt+=1
+            cnt+=1
 
-        # flip color of changes to negative corrs (neg_norm option)
-        if neg_norm==True:
-           plotccstats= plotccstats*np.sign(Acorrs)
-        
-        # mne plot function
-        pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
+            ################################################
+            # mne plot function
+            # TODO: test for mne / nofig 
 
-        # titles
-        ax=plt.gca()
-        ax.set_title(titles[plot],color='black') 
-        
-        #  color node faces
-        bars = pp[1].bar(node_angles, height*2.2, width=node_width, bottom=10.4, \
-                        edgecolor='0.9', lw=2, facecolor='.9', \
-                        align='center',linewidth=1)
+            pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
-        for bar, color in zip(bars, group_cols):
-            bar.set_facecolor(color)
-            bar.set_edgecolor(color)
-
-        #######################################################
-        # plot correlation info below circle plots
-        if plot=='other': 
-            plotrange='additive'
-        else:
-            plotrange=plot
-
-        #  sorting plotting only those indices requested 
-        sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
-        sort_array['f0']=fa(lims[plotrange][minstr])[0,inds_plots[plot]]  # 
-        sort_array['f1']=fa(lims[plotrange][maxstr])[0,inds_plots[plot]]  # 
-        ii=np.argsort(sort_array,order=['f0','f1'])
-
-        if len(ii)>0: 
-            # width of nodes       
-            width=np.max((20,len(ii)+10))
-            # ii_ext
-            ii_ext=np.r_[ii[0],ii,ii[-1]]
-
-            # fbwx: midpoints for under plots
-            fbwx=np.arange(len(ii_ext))+(width - len(ii_ext))/2.
-            fbwx[0]=fbwx[0]+0.5  #=np.r_[fbwx[0]-0.5, fbwx,fbwx[-1]+0.5]
-            fbwx[-1]=fbwx[-1]-0.5  
-
-            #  axis settings
-            ax=plt.subplot(245+cnt,axisbg='white')
-            ax.set_ylim([-1.,1])
-            ax.set_yticks([-1,0,1])
-            ax.set_yticks([-0.75,-.25,0,0.25,.5,.75,1],minor=True)
-            ax.yaxis.grid(color=[0.7,.95,.95],linestyle='-',linewidth=.5,which='minor')
-            ax.yaxis.grid(color=[0.65,.85,.85],linestyle='-',linewidth=2,which='major')
-
-            # first plot bands (fill between)
-            if len(fbwx)==1:            
-                # if only one element  
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Grey',alpha=0.4)
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
-
-                plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
-            else:
-                # if multple elements  
-                plt.fill_between(fbwx,fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],color=[0.67,0.76,0.85])
-                plt.fill_between(fbwx,fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
-                plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
+            # titles
+            ax=plt.gca()
+            ax.set_title(titles[plot],color='black') 
             
-            if neg_norm == True:
-                iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
-                iinegpos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])<abs(Bcorrs[0,inds_plots[plot]])))
+            #  color node faces
+            bars = pp[1].bar(node_angles, height*2.2, width=node_width, bottom=10.4, \
+                            edgecolor='0.9', lw=2, facecolor='.9', \
+                            align='center',linewidth=1)
+
+            for bar, color in zip(bars, group_cols):
+                bar.set_facecolor(color)
+                bar.set_edgecolor(color)
+
+            # plot correlation info below circle plots
+            if plot=='other': 
+                plotrange='additive'
             else:
-                iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
-                iinegpos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]<Bcorrs[0,inds_plots[plot]]))
+                plotrange=plot
 
-            # plotccstats.flatten()[inds_plots[plot]]
-            iipos=ii[iipospos]
-            iineg=ii[iinegpos]
+            #  sorting plotting only those indices requested 
+            sort_array=np.zeros((len(inds_plots[plot]),),dtype=('f4,f4'))
+            sort_array['f0']=fa(lims[plotrange][minstr])[0,inds_plots[plot]]  # 
+            sort_array['f1']=fa(lims[plotrange][maxstr])[0,inds_plots[plot]]  # 
+            ii=np.argsort(sort_array,order=['f0','f1'])
 
-            xes = np.arange(len(ii))+(width - len(ii))/2.
+            # plot conn info
+            if len(ii)>0: 
+                # width of nodes       
+                width=np.max((20,len(ii)+10))
+                # ii_ext
+                ii_ext=np.r_[ii[0],ii,ii[-1]]
 
-            # now plot correlation in A and B conditions
-            plt.plot(np.array([xes,xes])[:,find(iipospos)],[Acorrs[0,inds_plots[plot][iipos]],Bcorrs[0,inds_plots[plot][iipos]]],color=[0,0,1],alpha=1,linewidth=1.5,zorder=1)
-            plt.plot(np.array([xes,xes])[:,find(iinegpos)],[Acorrs[0,inds_plots[plot][iineg]],Bcorrs[0,inds_plots[plot][iineg]]],color=[1,0,0],alpha=1,linewidth=1.5,zorder=1)
+                # fbwx: midpoints for under plots
+                fbwx=np.arange(len(ii_ext))+(width - len(ii_ext))/2.
+                fbwx[0]=fbwx[0]+0.5  #=np.r_[fbwx[0]-0.5, fbwx,fbwx[-1]+0.5]
+                fbwx[-1]=fbwx[-1]-0.5  
 
-            plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
-            line3 = plt.Rectangle((0, 0), 0, 0,color=current_palette[0])
-            ax.add_patch(line3)
-            ax.set_xticks([])
+                #  axis settings
+                ax=plt.subplot(245+cnt,axisbg='white')
+                ax.set_ylim([-1.,1])
+                ax.set_yticks([-1,0,1])
+                ax.set_yticks([-0.75,-.25,0,0.25,.5,.75,1],minor=True)
+                ax.yaxis.grid(color=[0.7,.95,.95],linestyle='-',linewidth=.5,which='minor')
+                ax.yaxis.grid(color=[0.65,.85,.85],linestyle='-',linewidth=2,which='major')
 
-            # plot points
-            line2=plt.scatter((xes)[find(iipospos)],Bcorrs[0,inds_plots[plot][iipos]].T,color='blue',zorder=2)
-            line2=plt.scatter((xes)[find(iinegpos)],Bcorrs[0,inds_plots[plot][iineg]].T,color='red',zorder=2)
-            line2=plt.scatter((xes)[find(iipospos)],Acorrs[0,inds_plots[plot][iipos]].T,color='white',zorder=2)
-            line2=plt.scatter((xes)[find(iinegpos)],Acorrs[0,inds_plots[plot][iineg]].T,color='white',zorder=2)
+                # first plot bands for ASC / uncorr / common  (fill between)
+                if len(fbwx)==1:            
+                    # if only one element  
+                    plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Grey',alpha=0.4)
+                    plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Blue',alpha=0.4)
 
-            # plot line between, colouring line two according to pos or neg change
-            cmap=ListedColormap([(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196), (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)])
-            norm= BoundaryNorm([-2,0,1,2],cmap.N)
-            z=np.zeros(xes.shape[0]+1,)
+                    plt.fill_between(np.r_[fbwx-0.5,fbwx+0.5],np.r_[fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext]],np.r_[fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext]] ,color='Green',alpha=0.6)
+                else:
+                    # if multple elements  
+                    plt.fill_between(fbwx,fa(lims['additive'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['additive'][maxstr])[0,inds_plots[plot]][ii_ext],color=[0.67,0.76,0.85])
+                    plt.fill_between(fbwx,fa(lims['common'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['common'][maxstr])[0,inds_plots[plot]][ii_ext],color='Blue',alpha=0.4)
+                    plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
+                
+                if neg_norm == True:
+                    iipospos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])>abs(Bcorrs[0,inds_plots[plot]])))
+                    iinegpos=np.in1d(ii,find(abs(Acorrs[0,inds_plots[plot]])<abs(Bcorrs[0,inds_plots[plot]])))
+                else:
+                    iipospos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]>Bcorrs[0,inds_plots[plot]]))
+                    iinegpos=np.in1d(ii,find(Acorrs[0,inds_plots[plot]]<Bcorrs[0,inds_plots[plot]]))
 
-            # plot network membership above
-            colorline(fbwx[:-1], z+1.05,ROI_info['ROI_RSNs'][indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
-            colorline(fbwx[:-1], z+1.1,ROI_info['ROI_RSNs'][indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
-            plt.show()
+                iipos=ii[iipospos]
+                iineg=ii[iinegpos]
 
-    if savefig!=None:
-        if nofig==23: 
-            pp = PdfPages(fname)
-            fig.tight_layout(h_pad=1, pad=4)
-            pp.savefig(fig=fig)
-            pp.close()  
-        else:
-            fig.savefig(savefig)
+                xes = np.arange(len(ii))+(width - len(ii))/2.
+                
+                # now plot correlation in A and B conditions
+                plt.plot(np.array([xes,xes])[:,find(iipospos)],[Acorrs[0,inds_plots[plot][iipos]],Bcorrs[0,inds_plots[plot][iipos]]],color=[0,0,1],alpha=1,linewidth=1.5,zorder=1)
+                plt.plot(np.array([xes,xes])[:,find(iinegpos)],[Acorrs[0,inds_plots[plot][iineg]],Bcorrs[0,inds_plots[plot][iineg]]],color=[1,0,0],alpha=1,linewidth=1.5,zorder=1)
+
+                plt.fill_between(fbwx,fa(lims['uncorrelated'][minstr])[0,inds_plots[plot]][ii_ext],fa(lims['uncorrelated'][maxstr])[0,inds_plots[plot]][ii_ext],color='Green',alpha=0.6)
+                line3 = plt.Rectangle((0, 0), 0, 0,color=current_palette[0])
+                ax.add_patch(line3)
+                ax.set_xticks([])
+
+                # plot points
+                line2=plt.scatter((xes)[find(iipospos)],Bcorrs[0,inds_plots[plot][iipos]].T,color='blue',zorder=2)
+                line2=plt.scatter((xes)[find(iinegpos)],Bcorrs[0,inds_plots[plot][iineg]].T,color='red',zorder=2)
+                line2=plt.scatter((xes)[find(iipospos)],Acorrs[0,inds_plots[plot][iipos]].T,color='white',zorder=2)
+                line2=plt.scatter((xes)[find(iinegpos)],Acorrs[0,inds_plots[plot][iineg]].T,color='white',zorder=2)
+
+                # plot line between, colouring line two according to pos or neg change
+                cmap=ListedColormap([(0.2980392156862745, 0.4470588235294118, 0.6901960784313725), (0.3333333333333333, 0.6588235294117647, 0.40784313725490196), (0.7686274509803922, 0.3058823529411765, 0.3215686274509804)])
+                norm= BoundaryNorm([-2,0,1,2],cmap.N)
+                z=np.zeros(xes.shape[0]+1,)
+
+                # plot network membership above
+                colorline(fbwx[:-1], z+1.05,ROI_info['ROI_RSNs'][indices[0][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
+                colorline(fbwx[:-1], z+1.1,ROI_info['ROI_RSNs'][indices[1][np.r_[inds_plots[plot],inds_plots[plot][-1]]]]-1.5,cmap=cmap,norm=norm,linewidth=5)
+                plt.show()
+
+        if savefig!=None:
+            if nofig==23: 
+                pp = PdfPages(fname)
+                fig.tight_layout(h_pad=1, pad=4)
+                pp.savefig(fig=fig)
+                pp.close()  
+            else:
+                fig.savefig(savefig)
 
     # add stats to AB_con struct
     AB_con.lims['covs']['inds_plots']=inds_plots 
@@ -414,6 +420,11 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
     AB_con.lims['covs']['vv_stats']=vvstatsmat
 
     return(AB_con,inds_plots)
+
+
+################################################################################
+##  command line funcs
+
 
 if __name__=="__main__":
 
@@ -441,3 +452,29 @@ if __name__=="__main__":
     ARGS = PARSER.parse_args()
 
     _main(**vars(ARGS))
+
+#####################################
+##  main
+
+def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
+    """  Perform additive signal analysis. """ 
+    # initiate figure
+    fig = plt.figure(figsize=(20.27, 11.69))
+
+    # logging
+    logdir = os.path.join(dir, 'logs')
+
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+    logging.basicConfig(filename=op.join(logdir, 'asc.log'), level=logging.DEBUG)
+    logging.info('ASC analysis: %s', datetime.now())
+    logging.info('Workdir:\t\t%s', workdir)
+
+    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
+
+    pickle.dump(out,open(os.path.join(logdir,'log.p'),'wb'))
+
+    return()
+
+
