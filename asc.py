@@ -114,7 +114,7 @@ np.seterr(divide='ignore', invalid='ignore')
 #####################################
 ##  main
 
-def _main(input_dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_base='asc',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
+def _main(input_dir='.',design=None,inds1=None,inds2=None,pcorrs=False,min_corr_diff=0,out_base='asc',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
     """  Perform additive signal analysis. """ 
     # initiate figure
     fig = plt.figure(figsize=(20.27, 11.69))
@@ -452,24 +452,23 @@ if __name__=="__main__":
 
     DESC = "FMRI Additive Signal Analysis"
         
-    PARSER = argparse.ArgumentParser(description=DESC, argument_default=argparse.SUPPRESS)
-
+    PARSER = argparse.ArgumentParser(description=DESC, argument_default=argparse.SUPPRESS,
+            epilog='Example of use: \"asc.py -i . --inds1 inds1.txt --inds2 inds2.txt -o results --errdist_perms 5 \"')
     requiredArgs = PARSER.add_argument_group('required arguments')
     requiredArgs.add_argument('-i', '--input_dir', help='dual_regression dir', required=True)
 
     optionalArgs = PARSER.add_argument_group('optional arguments')
-    optionalArgs.add_argument('-d', '--design', help='design file', required=False)
     optionalArgs.add_argument('--inds1', help='index file 1', required=False)
     optionalArgs.add_argument('--inds2', help='index file 2', required=False)
 
     optionalArgs.add_argument('-o', '--out_base', help='output base file name [asc]', required=False)
-    optionalArgs.add_argument('--pcorrs', help='use partial correlation', required=False,type=bool)
-    optionalArgs.add_argument('--errdist_perms', help='permutations for monte carlo', required=False,type=int)
-    optionalArgs.add_argument('--min_corr_diff', help='minimum correlation change', required=False,type=float)
-    optionalArgs.add_argument('--prefix', help='dr prefix', required=False)
-    optionalArgs.add_argument('--pctl', help='percentile of connections to show (FDR)', required=False,type=float)
-    optionalArgs.add_argument('--subj_order', help='subject_order', required=False,type=bool)
+    optionalArgs.add_argument('--pcorrs', help='use partial correlation default=False', required=False,type=bool)
+    optionalArgs.add_argument('--errdist_perms', help='number of permutations for Monte Carlo', required=False,type=int)
+    optionalArgs.add_argument('--prefix', help='dual_regression prefix default=dr_stage1', required=False)
+    optionalArgs.add_argument('--pctl', help='pctl p-val for null hyp test that a change can be explained by additive change.', required=False,type=float)
     optionalArgs.add_argument('--exclude_conns', help='exclude connections', required=False, type=bool)
+    optionalArgs.add_argument('--min_corr_diff', help='set a threshold for minimum correlation change for a connection', required=False,type=float)
+    optionalArgs.add_argument('-d', '--design', help='design file (alternative to inds', required=False)
     
     ARGS = PARSER.parse_args()
 
