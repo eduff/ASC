@@ -108,7 +108,6 @@ try:
     from mne.viz import plot_connectivity_circle
 except:
     print("MNE not detected, no visualisation")
-FinalFig2.pdf
 
 np.seterr(divide='ignore', invalid='ignore')
 
