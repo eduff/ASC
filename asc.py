@@ -108,13 +108,14 @@ try:
     from mne.viz import plot_connectivity_circle
 except:
     print("MNE not detected, no visualisation")
+FinalFig2.pdf
 
 np.seterr(divide='ignore', invalid='ignore')
 
 #####################################
 ##  main
 
-def _main(input_dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_='asc',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
+def _main(input_dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_base='asc',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
     """  Perform additive signal analysis. """ 
     # initiate figure
     fig = plt.figure(figsize=(20.27, 11.69))
@@ -129,10 +130,11 @@ def _main(input_dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorr
     logging.info('ASC analysis: %s', datetime.datetime.now())
     logging.info('Workdir:\t\t%s', input_dir)
 
-    AB_con=plot_conn(dir=input_dir,design=design,inds1=inds1,inds2=inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=False)
+    AB_con=plot_conn(dir=input_dir,design=design,inds1=inds1,inds2=inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_base+'.png',pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=False)
     
-    outdata=open(os.path.join(logdir,'log.p'),'wb')
-    pickle.dump(AB_con,)
+    outdata=open(out_base+'.npz','wb')
+    pickle.dump(AB_con,outdata)
+    outdata.close()
 
     return()
 
@@ -325,7 +327,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         for plot in plots:
 
             cnt+=1
-            print(str(cnt))
 
             ################################################
             # mne plot function
@@ -333,7 +334,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
             pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
-            print(str(cnt))
             # titles
             ax=plt.gca()
             ax.set_title(titles[plot],color='black') 
@@ -347,7 +347,6 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
                 bar.set_facecolor(color)
                 bar.set_edgecolor(color)
 
-            print(str(cnt))
             # plot correlation info below circle plots
             if plot=='other': 
                 plotrange='additive'
@@ -464,7 +463,7 @@ if __name__=="__main__":
     optionalArgs.add_argument('--inds1', help='index file 1', required=False)
     optionalArgs.add_argument('--inds2', help='index file 2', required=False)
 
-    optionalArgs.add_argument('-o', '--out_fname', help='output file [asc.pdf]', required=False)
+    optionalArgs.add_argument('-o', '--out_base', help='output base file name [asc]', required=False)
     optionalArgs.add_argument('--pcorrs', help='use partial correlation', required=False,type=bool)
     optionalArgs.add_argument('--errdist_perms', help='permutations for monte carlo', required=False,type=int)
     optionalArgs.add_argument('--min_corr_diff', help='minimum correlation change', required=False,type=float)
