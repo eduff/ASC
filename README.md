@@ -1,6 +1,6 @@
 # Additive Signal Change Analysis tool
 
-*Version 0.2.0* --- 2017-03-30
+*Version 0.2.0* --- 2017-12-16
 
 [Repository][REPOSITORY] --- [Changelog][CHANGELOG] --- [License][LICENSE]
 
@@ -24,9 +24,9 @@ Python dependencies are the following, to be included in [FSLpy]
  + [NumPy](http://www.numpy.org): The fundamental package for scientific computing with Python.
  + [SciPy](http://www.scipy.org): A Python-based ecosystem of open-source software for mathematics, science, and engineering.
  + [matplotlib](http://matplotlib.org): A python 2D plotting library.
- + [NiBabel](http://nipy.org/nibabel/): Provides read / write access to some common neuroimaging file formats.
- + [Spectrum](https://github.com/cokelaer/spectrum) Spectrum Analysis Tools.
- + [MNE](http://martinos.org/mne/): Temporary visualisation tools.
+ + [Spectrum](https://github.com/cokelaer/spectrum) Basic spectral Analysis Tools for dof estimation. * temporary *
+ + [MNE](http://martinos.org/mne/): visualisation tools. * temporary *
+ + [NiBabel](http://nipy.org/nibabel/): Provides read / write access to some common neuroimaging file formats. * optional *
 
 ----------
 
@@ -76,6 +76,13 @@ optional arguments:
 ----------
 
 ## Basic Usage - Apply to Dual Regression dir
+```bash
+usage: asc.py -d dual_reg.dr --inds1 1,2,3,4,5,6,7,8,9,10 --inds2 10,12,13,14,15,16,17,18,19,20  -o asc_results
+              --pcorrs True --errdist_perms 1500
+              [--min_corr_diff MIN_CORR_DIFF] [--prefix PREFIX] [--pctl PCTL]
+              [--subj_order SUBJ_ORDER] [--exclude_conns EXCLUDE_CONNS]
+```
+
 
 
 ----------
