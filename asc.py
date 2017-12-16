@@ -73,10 +73,9 @@ This module provides tools for estimating and plotting Additive Signal Change (A
 
 Provides a procedural interface primarily for interactively. 
 
-Modules include: 
+Submodules include: 
     :mod:`asc_funcs`
         provides helper functions
-
 Todo:
 """
 
@@ -89,12 +88,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import pickle
-import argparse
-import logging
+import os,argparse,glob,logging,pickle,datetime
 import scipy.stats as stats
 import numpy as np
-import glob
 import asc_funcs
 from asc_funcs import flattenall as fa
 from colorline import colorline
@@ -115,16 +111,43 @@ except:
 
 np.seterr(divide='ignore', invalid='ignore')
 
+#####################################
+##  main
+
+def _main(input_dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_='asc',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
+    """  Perform additive signal analysis. """ 
+    # initiate figure
+    fig = plt.figure(figsize=(20.27, 11.69))
+
+    # logging
+    logdir = os.path.join(input_dir, 'logs')
+
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+    logging.basicConfig(filename=os.path.join(logdir, 'asc.log'), level=logging.DEBUG)
+    logging.info('ASC analysis: %s', datetime.datetime.now())
+    logging.info('Workdir:\t\t%s', input_dir)
+
+    AB_con=plot_conn(dir=input_dir,design=design,inds1=inds1,inds2=inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=False)
+    
+    outdata=open(os.path.join(logdir,'log.p'),'wb')
+    pickle.dump(AB_con,)
+
+    return()
 
 ################################################################################
 # calculate and plot connectivity matrices from a dual-regression directory
 
-def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True,fdr_alpha=0.2):
+def plot_conn(dir=".",inds1=None,inds2=None,fig=None,errdist_perms=0,prefix='dr_stage1',exclude_conns=True,data_pre='',design=None, savefig='',pctl=5,min_corr_diff=0,pcorrs=False,neg_norm=True,nosubj=False,subj_order=True,nofig=False,rel=True,fdr_alpha=0.2):
     """  Perform Additive Signal Change analysis and plot results.
-
     Key arguments
-    dir -- directory of time courses (e.g. dual regression)
-    design -- 
+    Optional:
+        dir -- directory (default: current dir)
+        inds1 -- indexes of dual regression files corresponding to group 1
+        inds2 -- indexes of dual regression files corresponding to group 2
+        design -- FEAT style design file specifying samples according to +1, -1
+        errdist_perms -- number of permutations for estimating the expected distribution
     """
 
     # load indexes
@@ -155,7 +178,6 @@ def plot_conn(dir,design=None,inds1=None,inds2=None,fig=None,errdist_perms=0,pre
     # read data for two states
     A = asc_funcs.dr_loader(dir,subj_inds=inds1,prefix=prefix,nosubj=nosubj)
     B = asc_funcs.dr_loader(dir,subj_inds=inds2,prefix=prefix,nosubj=nosubj)
-
     # generate contrast
     AB_con = asc_funcs.FC_con(A,B)
 
@@ -275,8 +297,8 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
             minstr='min_pctls'
             maxstr='max_pctls'
         else:
-            inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls'])))
-            notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls'])))
+            inds_plots[plot]=np.intersect1d(inds_cc,find(fa(lims[plot]['pctls_noerr'])))
+            notin = np.setdiff1d(notin,find(fa(lims[plot]['pctls_noerr'])))
             minstr='min'
             maxstr='max'
 
@@ -303,6 +325,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
         for plot in plots:
 
             cnt+=1
+            print(str(cnt))
 
             ################################################
             # mne plot function
@@ -310,6 +333,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
             pp=plot_connectivity_circle(plotccstats.flatten()[inds_plots[plot]],ROI_info['ROI_names'][0:n_nodes],(indices[0][inds_plots[plot]],indices[1][inds_plots[plot]]),fig=fig,colormap='BlueRed1',vmin=vmin,vmax=vmax,node_colors=vcols,subplot=241+cnt,title=titles[plot],interactive=True,fontsize_names=fontsize,facecolor='w',colorbar=False,node_edgecolor=node_edgecolor,textcolor='black',padding=3,node_linewidth=0.5) 
 
+            print(str(cnt))
             # titles
             ax=plt.gca()
             ax.set_title(titles[plot],color='black') 
@@ -323,6 +347,7 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
                 bar.set_facecolor(color)
                 bar.set_edgecolor(color)
 
+            print(str(cnt))
             # plot correlation info below circle plots
             if plot=='other': 
                 plotrange='additive'
@@ -421,12 +446,11 @@ def plot_conn_stats(AB_con,fig,flatten=True,errdist_perms=0,pctl=5,min_corr_diff
 
     return(AB_con,inds_plots)
 
-
 ################################################################################
 ##  command line funcs
 
-
 if __name__=="__main__":
+    """ Main commnd """
 
     DESC = "FMRI Additive Signal Analysis"
         
@@ -452,29 +476,5 @@ if __name__=="__main__":
     ARGS = PARSER.parse_args()
 
     _main(**vars(ARGS))
-
-#####################################
-##  main
-
-def _main(dir='.',design=None,inds1=None,inds2=None,subj_order=False,pcorrs=False,min_corr_diff=0,out_fname='asc.png',prefix='dr_stage1',errdist_perms=0,exclude_conns=True,data_pre='',pctl=5,neg_norm=False,nosubj=False,rel=True):
-    """  Perform additive signal analysis. """ 
-    # initiate figure
-    fig = plt.figure(figsize=(20.27, 11.69))
-
-    # logging
-    logdir = os.path.join(dir, 'logs')
-
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
-
-    logging.basicConfig(filename=op.join(logdir, 'asc.log'), level=logging.DEBUG)
-    logging.info('ASC analysis: %s', datetime.now())
-    logging.info('Workdir:\t\t%s', workdir)
-
-    AB_con=plot_conn(dir,design,inds1,inds2,fig=fig,errdist_perms=errdist_perms,prefix=prefix,exclude_conns=bool(exclude_conns),data_pre=data_pre,savefig=out_fname,pctl=float(pctl),min_corr_diff=min_corr_diff,pcorrs=pcorrs,rel=rel,neg_norm=neg_norm,nosubj=nosubj,nofig=True)
-
-    pickle.dump(out,open(os.path.join(logdir,'log.p'),'wb'))
-
-    return()
 
 
