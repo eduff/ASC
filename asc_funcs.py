@@ -1110,7 +1110,7 @@ def dr_saver(A,dir,prefix='dr_stage1',goodnodes=None,aug=0):
 
     for subj in np.arange(tcs.shape[0]):
         numb = str(subj+aug)
-        savetxt(dir+'/'+prefix+'_subject'+numb.zfill(5)+'.txt', np.atleast_3d(tcs[subj,goodnodes,:].T))
+        np.savetxt(dir+'/'+prefix+'_subject'+numb.zfill(5)+'.txt', np.atleast_3d(tcs[subj,goodnodes,:].T))
 
 def percentileofscore(data,score,axis):
     """ calculate a percentile for given data. """
