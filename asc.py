@@ -454,10 +454,11 @@ if __name__=="__main__":
         
     PARSER = argparse.ArgumentParser(description=DESC, argument_default=argparse.SUPPRESS,
             epilog='Example of use: \"asc.py -i . --inds1 inds1.txt --inds2 inds2.txt -o results --errdist_perms 5 \"')
-    requiredArgs = PARSER.add_argument_group('required arguments')
-    requiredArgs.add_argument('-i', '--input_dir', help='dual_regression dir', required=True)
+    #requiredArgs = PARSER.add_argument_group('required arguments')
+    #requiredArgs.add_argument('-i', '--input_dir', help='dual_regression dir', required=True)
 
     optionalArgs = PARSER.add_argument_group('optional arguments')
+    optionalArgs.add_argument('-i', '--input_dir', help='dual_regression dir (default = .)', required=False)
     optionalArgs.add_argument('--inds1', help='index file 1', required=False)
     optionalArgs.add_argument('--inds2', help='index file 2', required=False)
 
