@@ -16,6 +16,7 @@ import glob,os, numbers
 import scipy.stats as stats
 import scipy.sparse
 import spectrum
+import scipy.linalg as linalg
 from itertools import combinations, chain
 from scipy.misc import comb
 from scipy.interpolate import interp1d
@@ -712,12 +713,12 @@ def corr2pcorr(cc):
     """ convert correlation to partial corr. """
     pinvA=linalg.pinv(cc)
     iis=np.tile(np.atleast_3d(pinvA.diagonal()).T,pinvA.shape[1])
-    dd=diag(pinvA)
+    dd=np.diag(pinvA)
 
-    tmp=-pinvA/np.sqrt(iis*iis.T)
-    tmp[where(np.eye(cc.shape[1]))]=1
+    output=-pinvA/np.sqrt(iis*iis.T)
+    output[np.where(np.eye(cc.shape[1]))]=1
 
-    return(tmp)
+    return(output)
 
 class wishart_gen:
     """ class to generate simulated samples for a covariance matrix. """
@@ -1227,6 +1228,18 @@ def gen_sim_data(tcs,covmat=np.array([]),nreps=-1):
                 L=np.linalg.cholesky(covmat[a,:,:])
                 gen_tcs[a,:,:]=np.dot(L,rand_tcs[a,:,:]) + np.mean(tcs[a,:,:],1,keepdims=True)
     return gen_tcs
+
+def inst_cov(tcs):
+    ntcs=tcs.shape[0]
+    inds = np.triu_indices(ntcs)
+
+    out = np.zeros((ntcs,ntcs,tcs.shape[-1]))
+
+    out[inds[0],inds[1],:] = tcs[inds[0],:] * tcs[inds[1],:]
+    out[inds[1],inds[0],:] = tcs[inds[0],:] * tcs[inds[1],:]
+
+    return(out)
+
 
 def rightShift1(tup, n):
     """ shift tuple elements right. """
